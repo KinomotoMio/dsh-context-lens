@@ -7,7 +7,7 @@
 DSH Context Lens is a read-only observability plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It adds a **Lens** view beside Chat and Trajectory, reconstructs each ordinary Agent request, and shows which plugins contributed its system prompt, runtime context, tools, and plugin messages.
 
 > [!WARNING]
-> **Work in progress.** Context Lens is under active development and may still contain substantial bugs or incomplete behavior. Some metrics may be inaccurate, especially estimated context token counts and KV cache read/hit ratios. Verify important conclusions against provider-reported data, and please [open an issue](https://github.com/KinomotoMio/dsh-context-lens/issues/new) when something looks wrong.
+> **Work in progress.** Context Lens is under active development and may still contain substantial bugs or incomplete behavior. Plugin shares are estimated with DSH token-meter density, not the provider tokenizer. Headline totals and KV cache figures use provider usage when the adapter reported it. Verify important conclusions against the provider response, and please [open an issue](https://github.com/KinomotoMio/dsh-context-lens/issues/new) when something looks wrong.
 >
 > Near-term work: [frontend usability](https://github.com/KinomotoMio/dsh-context-lens/issues/1) · [data accuracy](https://github.com/KinomotoMio/dsh-context-lens/issues/2) · [attribution coverage and DSH compatibility](https://github.com/KinomotoMio/dsh-context-lens/issues/3).
 
@@ -36,10 +36,10 @@ The view reuses DSH Web's UI primitives, typography, surfaces, and `--dsw-*` des
 
 The default **Breakdown** view stays at the attribution level:
 
-- one stacked bar for the estimated model input;
+- one stacked bar for the provider-reported model input when usage exists, otherwise the estimated input;
 - one row per plugin with estimated tokens, share, and change from the previous request;
 - explicit `Conversation`, `Unattributed`, and `Conflicted` rows;
-- provider-reported uncached input, cache read, cache write, and cache read / billed input;
+- provider-reported uncached input, cache read, optional cache write, and cache read / prompt tokens;
 - added, removed, changed, and moved contributions beside the cache figures.
 
 Select a plugin to inspect its named sections, runtime contexts, tools, and plugin messages. Full prompt text and JSON schemas are fetched only after selecting **Reveal content**. They are not included in the initial snapshot response.
@@ -116,14 +116,19 @@ Two owners at the same priority produce `Conflicted`; the Harness continues runn
 Context Lens displays the provider's token accounting next to structural contribution changes. The cache read share is:
 
 ```text
-cache read / (uncached input + cache read + cache write)
+cache read / prompt tokens
 ```
 
-These provider figures remain separate from the plugin token estimate. A simultaneous contribution change and cache change is useful correlation for debugging prefix stability, but it is not proof that one caused the other. If the provider reports no cache fields, the Lens says so and does not estimate a hit rate.
+where `prompt tokens = uncached input + cache read`. That matches DeepSeek's `prompt_tokens` identity (`hit + miss`). Cache write is shown only when the provider reports it and is not part of the denominator. DeepSeek does not report cache write.
+
+These provider figures remain separate from the plugin token estimate. A simultaneous contribution change and cache change is useful correlation for debugging prefix stability, but it is not proof that one caused the other. If the provider reports no cache fields, the Lens says so and does not estimate a hit rate. A write-only report does not produce a read share.
 
 ## Accuracy model
 
-- Plugin shares use the same fixed-density estimator as DSH token-meter and always display `≈`.
+- Headline totals use provider usage when present: `inputTokens + cacheReadTokens`. Contributor rows and Reader shares stay on the token-meter estimator and always display `≈`.
+- The estimator is the same chars/4 density as DSH token-meter. It is not the DeepSeek tokenizer. Measured against `deepseek-v4-flash`: English long prompts are near 1×, Chinese is about 2× under, tool schemas about 2.4× under, and short requests miss about 70 template tokens.
+- Do not treat the estimate as provider truth, and do not apply a CJK coefficient to "fix" it. Plugin shares have no provider per-plugin tokens to compare against.
+- Provider cache read and `hit / (miss + hit)` are real on DeepSeek. Missing cache fields stay omitted; Lens never fills write or a hit rate with `0`.
 - Provider input and cache tokens are shown as reported; they are not redistributed across plugins.
 - Live system-section boundaries are retained only when the captured structured assembly renders to the exact `request/header.system` value. A mismatch collapses the complete rendered system prompt into `Unattributed` rather than guessing.
 - Cold Sessions are inspected through `sessionPersistence.inspect()` and reconstructed from their log. Structured system boundaries are process-local, so a cold request normally uses the conservative flattened fallback.

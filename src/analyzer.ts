@@ -137,13 +137,14 @@ export function requestRecords(events: readonly SessionEvent[]): readonly Reques
       && event.data.turn === open.turn
       && event.data.step === open.step) {
       open.cutoffSeq ??= event.seq
+      if (isUsageChunk(event.data.chunk)) open.usage = event.data.chunk.usage
       continue
     }
     if (event.type === 'assistant/message'
       && event.data.turn === open.turn
       && event.data.step === open.step) {
       open.cutoffSeq ??= event.seq
-      open.usage = event.data.usage
+      if (event.data.usage !== undefined) open.usage = event.data.usage
       open.producedAssistant = true
       continue
     }
@@ -159,23 +160,36 @@ export function requestRecords(events: readonly SessionEvent[]): readonly Reques
   return requests
 }
 
+function isUsageChunk(chunk: unknown): chunk is { type: 'usage'; usage: TokenUsage } {
+  return typeof chunk === 'object'
+    && chunk !== null
+    && 'type' in chunk
+    && chunk.type === 'usage'
+    && 'usage' in chunk
+    && typeof chunk.usage === 'object'
+    && chunk.usage !== null
+}
+
+function reportedPromptTokens(usage: TokenUsage): number {
+  return usage.inputTokens + (usage.cacheReadTokens ?? 0)
+}
+
 function cacheSummary(usage: TokenUsage | undefined): CacheSummary {
-  const reported = usage !== undefined
-    && (usage.cacheReadTokens !== undefined || usage.cacheWriteTokens !== undefined)
-  if (!reported || usage === undefined) return { reported: false }
+  if (usage === undefined) return { reported: false }
+  if (usage.cacheReadTokens === undefined && usage.cacheWriteTokens === undefined) {
+    return { reported: false }
+  }
   const uncachedInputTokens = usage.inputTokens
-  const cacheReadTokens = usage.cacheReadTokens ?? 0
-  const cacheWriteTokens = usage.cacheWriteTokens ?? 0
-  const billedInputTokens = uncachedInputTokens + cacheReadTokens + cacheWriteTokens
+  const billedInputTokens = reportedPromptTokens(usage)
   return {
     reported: true,
     uncachedInputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
     billedInputTokens,
-    ...(billedInputTokens === 0
+    ...(usage.cacheReadTokens === undefined ? {} : { cacheReadTokens: usage.cacheReadTokens }),
+    ...(usage.cacheWriteTokens === undefined ? {} : { cacheWriteTokens: usage.cacheWriteTokens }),
+    ...(usage.cacheReadTokens === undefined || billedInputTokens === 0
       ? {}
-      : { hitPercent: cacheReadTokens / billedInputTokens * 100 }),
+      : { hitPercent: usage.cacheReadTokens / billedInputTokens * 100 }),
   }
 }
 
@@ -578,6 +592,9 @@ export function analyzeContext(options: AnalyzeOptions): AnalysisResult {
       selected: catalogItem(selected),
       ...(previous === undefined ? {} : { previousKey: previous.key }),
       estimatedTokens,
+      ...(selected.usage === undefined
+        ? {}
+        : { reportedTokens: reportedPromptTokens(selected.usage) }),
       attributedTokens,
       attributionPercent: estimatedTokens === 0 ? 100 : attributedTokens / estimatedTokens * 100,
       contributors: grouped,

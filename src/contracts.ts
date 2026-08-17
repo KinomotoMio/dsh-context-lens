@@ -120,6 +120,7 @@ export const snapshotSchema = z.object({
   selected: requestCatalogItemSchema,
   previousKey: z.string().optional(),
   estimatedTokens: z.number().int().nonnegative(),
+  reportedTokens: z.number().int().nonnegative().optional(),
   attributedTokens: z.number().int().nonnegative(),
   attributionPercent: z.number().min(0).max(100),
   contributors: z.array(contributorSchema),
