@@ -219,9 +219,10 @@ describe('LensView', () => {
     const view = render(<LensView {...props({ call: reported })} />)
     expect(await screen.findByText('70%')).toBeTruthy()
     expect(screen.getByText('cache read / prompt tokens')).toBeTruthy()
-    expect(screen.getByText('Reported context')).toBeTruthy()
-    expect(screen.getByText('100')).toBeTruthy()
-    expect(screen.queryByText('≈120')).toBeNull()
+    const reportedPanel = screen.getByRole('region', { name: 'Reported context' })
+    expect(within(reportedPanel).getByText('100')).toBeTruthy()
+    expect(within(reportedPanel).queryByText(/≈/)).toBeNull()
+    expect(screen.getByLabelText('100 reported tokens')).toBeTruthy()
 
     view.unmount()
     const absent = snapshot(false)
@@ -232,8 +233,8 @@ describe('LensView', () => {
     }))
     render(<LensView {...props({ call: absentCall })} />)
     expect(await screen.findByText('Provider did not report cache usage')).toBeTruthy()
-    expect(screen.getByText('Estimated context')).toBeTruthy()
-    expect(screen.getByText('≈120')).toBeTruthy()
+    const estimatedPanel = screen.getByRole('region', { name: 'Estimated context' })
+    expect(within(estimatedPanel).getByText('≈120')).toBeTruthy()
   })
 
   it('hides cache write and does not invent a hit rate', async () => {
