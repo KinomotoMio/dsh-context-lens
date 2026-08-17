@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out the DSH API source
+        run: |
+          git clone --filter=blob:none https://github.com/KinomotoMio/deepseek-harness.git ../deepseek-harness
+          git -C ../deepseek-harness checkout 99f6f02fecdb7dff40c3fbc9470f5907c29f74ca
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Prepare DSH linked packages
+        working-directory: ../deepseek-harness
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          pnpm build
+          pnpm pack:check
+          node -e "import('./lib/index.js')"

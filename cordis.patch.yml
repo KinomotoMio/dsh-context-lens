@@ -1,0 +1,4 @@
+# Mount the read-only Host observer. package.json exposes the matching browser client.
+- insert:
+    - id: plugin-context-lens
+      name: "@kinomotomio/dsh-context-lens"

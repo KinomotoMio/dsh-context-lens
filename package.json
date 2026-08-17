@@ -1,0 +1,129 @@
+{
+  "name": "@kinomotomio/dsh-context-lens",
+  "version": "0.1.0",
+  "description": "See what every plugin puts into the model.",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KinomotoMio/dsh-context-lens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KinomotoMio/dsh-context-lens/issues"
+  },
+  "homepage": "https://github.com/KinomotoMio/dsh-context-lens#readme",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "context-engineering",
+    "context-visualization",
+    "llm-observability",
+    "agent-observability",
+    "kv-cache",
+    "token-usage"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./contracts": {
+      "types": "./lib/types/contracts.d.ts",
+      "default": "./lib/contracts.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/contracts.js",
+    "lib/client.js",
+    "lib/client.js.map",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src tests tsdown.config.ts",
+    "test": "vitest run",
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "pack:check": "pnpm pack --pack-destination .artifacts && node scripts/verify-pack.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.1",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-host-apiproxy": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-session-persistence": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.7 <0.2.0",
+    "@deepseek-ai/dsh-token-meter": ">=0.1.0-rc.7 <0.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../deepseek-harness/vendor/cordis",
+    "@deepseek-ai/dsh-agent": "link:../deepseek-harness/packages/core/agent",
+    "@deepseek-ai/dsh-client-connection": "link:../deepseek-harness/packages/client/connection",
+    "@deepseek-ai/dsh-client-locale": "link:../deepseek-harness/packages/client/locale",
+    "@deepseek-ai/dsh-client-runtime": "link:../deepseek-harness/packages/client/runtime",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:../deepseek-harness/packages/client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../deepseek-harness/packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-slots": "link:../deepseek-harness/packages/client/ui-slots",
+    "@deepseek-ai/dsh-host-apiproxy": "link:../deepseek-harness/packages/host/apiproxy",
+    "@deepseek-ai/dsh-llm": "link:../deepseek-harness/packages/llm/llm",
+    "@deepseek-ai/dsh-session": "link:../deepseek-harness/packages/core/session",
+    "@deepseek-ai/dsh-session-persistence": "link:../deepseek-harness/packages/session/session-persistence",
+    "@deepseek-ai/dsh-system-prompt": "link:../deepseek-harness/packages/core/system-prompt",
+    "@deepseek-ai/dsh-token-meter": "link:../deepseek-harness/packages/llm/token-meter",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.20.0",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.0",
+    "jsdom": "29.1.1",
+    "lightningcss": "^1.32.0",
+    "oxlint": "1.76.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+lib/
+.artifacts/
+.playwright-cli/
+coverage/
+.DS_Store
