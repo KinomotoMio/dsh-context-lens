@@ -106,14 +106,24 @@ function CachePanel({ snapshot, t }: { readonly snapshot: ContextLensSnapshot; r
         <p className={css.muted}>{t('cache.unavailable')}</p>
       ) : (
         <>
-          <div className={css.cacheLead}>
-            <strong>{formatPercent(cache.hitPercent ?? 0)}</strong>
-            <span>{t('cache.hit')}</span>
-          </div>
+          {cache.hitPercent === undefined ? (
+            <p className={css.muted}>{t('cache.rateUnavailable')}</p>
+          ) : (
+            <div className={css.cacheLead}>
+              <strong>{formatPercent(cache.hitPercent)}</strong>
+              <span>{t('cache.hit')}</span>
+            </div>
+          )}
           <dl className={css.cacheGrid}>
-            <div><dt>{t('cache.read')}</dt><dd>{formatTokens(cache.cacheReadTokens ?? 0)}</dd></div>
-            <div><dt>{t('cache.write')}</dt><dd>{formatTokens(cache.cacheWriteTokens ?? 0)}</dd></div>
-            <div><dt>{t('cache.uncached')}</dt><dd>{formatTokens(cache.uncachedInputTokens ?? 0)}</dd></div>
+            {cache.cacheReadTokens !== undefined && (
+              <div><dt>{t('cache.read')}</dt><dd>{formatTokens(cache.cacheReadTokens)}</dd></div>
+            )}
+            {cache.cacheWriteTokens !== undefined && (
+              <div><dt>{t('cache.write')}</dt><dd>{formatTokens(cache.cacheWriteTokens)}</dd></div>
+            )}
+            {cache.uncachedInputTokens !== undefined && (
+              <div><dt>{t('cache.uncached')}</dt><dd>{formatTokens(cache.uncachedInputTokens)}</dd></div>
+            )}
           </dl>
         </>
       )}
@@ -397,16 +407,24 @@ export function LensView({ useSession, sessionId, rpc, t }: LensProps) {
       >
         <div className={css.overview}>
         <section className={css.contextPanel} aria-labelledby="lens-estimated-title">
-          <div className={css.sectionEyebrow} id="lens-estimated-title">{t('estimated')}</div>
+          <div className={css.sectionEyebrow} id="lens-estimated-title">
+            {snapshot.reportedTokens === undefined ? t('estimated') : t('reported')}
+          </div>
           <div className={css.contextLead}>
-            <strong>≈{formatTokens(snapshot.estimatedTokens)}</strong>
+            <strong>
+              {snapshot.reportedTokens === undefined
+                ? `≈${formatTokens(snapshot.estimatedTokens)}`
+                : formatTokens(snapshot.reportedTokens)}
+            </strong>
             <span>{t('tokens')}</span>
           </div>
           <div className={css.coverageLine}>
             <span>{formatPercent(snapshot.attributionPercent)} {t('coverage')}</span>
             <Pill>{snapshot.mode === 'live-verified' ? t('live') : t('reconstructed')}</Pill>
           </div>
-          <div className={css.stack} aria-label={`${snapshot.estimatedTokens} estimated tokens`}>
+          <div className={css.stack} aria-label={snapshot.reportedTokens === undefined
+            ? `${snapshot.estimatedTokens} estimated tokens`
+            : `${snapshot.reportedTokens} reported tokens`}>
             {segments.map(segment => (
               <span
                 key={segment.owner.id}

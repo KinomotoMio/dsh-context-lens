@@ -150,6 +150,7 @@ describe('context analysis', () => {
       'messages',
     ])
     expect(snapshot.estimatedTokens).toBe(estimateSystem('Stable policy') + estimateTools(TOOLS) + 7 + 11)
+    expect(snapshot.reportedTokens).toBe(200)
     expect(snapshot.cache).toEqual({
       reported: true,
       uncachedInputTokens: 50,
@@ -201,7 +202,9 @@ describe('context analysis', () => {
     session.append('turn/start', { turn: 1 })
     appendStep(session, 1, 1, { inputTokens: 8, outputTokens: 2 }, header(''))
 
-    expect(analyze(session.events).snapshot.cache).toEqual({ reported: false })
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.cache).toEqual({ reported: false })
+    expect(snapshot.reportedTokens).toBe(8)
   })
 
   it('measures the folded surface after a compaction-style replacement', () => {
@@ -228,5 +231,127 @@ describe('context analysis', () => {
       id: `plugin-message:${summary.id}`,
       owner: expect.objectContaining({ id: '@example/compactor' }),
     }))
+  })
+
+  it('reads usage from an assistant/chunk when the assembled message has none', () => {
+    const session = Session.create(SessionId('chunk-usage'))
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
+    session.append('request/header', { header: header(''), reason: 'initial' })
+    session.append('assistant/chunk', {
+      turn: 1,
+      step: 1,
+      chunk: {
+        type: 'usage',
+        usage: { inputTokens: 40, outputTokens: 6, cacheReadTokens: 80 },
+      },
+    })
+    session.append('assistant/message', {
+      turn: 1,
+      step: 1,
+      message: assistant('chunk only'),
+    }, { surfaceOp: 'append' })
+    session.append('step/end', { turn: 1, step: 1 })
+
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.reportedTokens).toBe(120)
+    expect(snapshot.cache).toEqual({
+      reported: true,
+      uncachedInputTokens: 40,
+      cacheReadTokens: 80,
+      billedInputTokens: 120,
+      hitPercent: 80 / 120 * 100,
+    })
+  })
+
+  it('lets a later usage sample replace an earlier one', () => {
+    const session = Session.create(SessionId('later-usage'))
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
+    session.append('request/header', { header: header(''), reason: 'initial' })
+    session.append('assistant/chunk', {
+      turn: 1,
+      step: 1,
+      chunk: {
+        type: 'usage',
+        usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 90 },
+      },
+    })
+    session.append('assistant/message', {
+      turn: 1,
+      step: 1,
+      message: assistant('later wins'),
+      usage: { inputTokens: 12, outputTokens: 2, cacheReadTokens: 88 },
+    }, { surfaceOp: 'append' })
+    session.append('step/end', { turn: 1, step: 1 })
+
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.reportedTokens).toBe(100)
+    expect(snapshot.cache.cacheReadTokens).toBe(88)
+    expect(snapshot.cache.hitPercent).toBe(88)
+  })
+
+  it('omits cache write and still reports a hit rate from prompt tokens', () => {
+    const session = Session.create(SessionId('no-write'))
+    session.append('turn/start', { turn: 1 })
+    appendStep(session, 1, 1, {
+      inputTokens: 123,
+      outputTokens: 4,
+      cacheReadTokens: 896,
+    }, header(''))
+
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.reportedTokens).toBe(1019)
+    expect(snapshot.cache).toEqual({
+      reported: true,
+      uncachedInputTokens: 123,
+      cacheReadTokens: 896,
+      billedInputTokens: 1019,
+      hitPercent: 896 / 1019 * 100,
+    })
+    expect(snapshot.cache).not.toHaveProperty('cacheWriteTokens')
+  })
+
+  it('does not put cache write in the hit-rate denominator', () => {
+    const session = Session.create(SessionId('write-excluded'))
+    session.append('turn/start', { turn: 1 })
+    appendStep(session, 1, 1, {
+      inputTokens: 50,
+      outputTokens: 4,
+      cacheReadTokens: 150,
+      cacheWriteTokens: 20,
+    }, header(''))
+
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.reportedTokens).toBe(200)
+    expect(snapshot.cache).toEqual({
+      reported: true,
+      uncachedInputTokens: 50,
+      cacheReadTokens: 150,
+      cacheWriteTokens: 20,
+      billedInputTokens: 200,
+      hitPercent: 75,
+    })
+  })
+
+  it('does not invent a hit rate when only cache write is present', () => {
+    const session = Session.create(SessionId('write-only'))
+    session.append('turn/start', { turn: 1 })
+    appendStep(session, 1, 1, {
+      inputTokens: 40,
+      outputTokens: 4,
+      cacheWriteTokens: 12,
+    }, header(''))
+
+    const snapshot = analyze(session.events).snapshot
+    expect(snapshot.reportedTokens).toBe(40)
+    expect(snapshot.cache).toEqual({
+      reported: true,
+      uncachedInputTokens: 40,
+      cacheWriteTokens: 12,
+      billedInputTokens: 40,
+    })
+    expect(snapshot.cache).not.toHaveProperty('hitPercent')
+    expect(snapshot.cache).not.toHaveProperty('cacheReadTokens')
   })
 })

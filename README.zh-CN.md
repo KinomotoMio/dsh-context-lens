@@ -36,10 +36,10 @@ DSH Context Lens 是一个面向 [DeepSeek Harness](https://github.com/deepseek-
 
 默认的 **Breakdown** 视图停留在归因层：
 
-- 一条展示估算模型输入的堆叠占比条；
+- 有 Provider usage 时，堆叠占比条展示 Provider 报告的模型输入，否则展示估算输入；
 - 每个插件一行，展示估算 token、占比和相对上一次请求的变化；
 - 明确的 `Conversation`、`Unattributed` 和 `Conflicted` 行；
-- Provider 报告的未缓存输入、cache read、cache write 以及 cache read / billed input；
+- Provider 报告的未缓存输入、cache read、可选的 cache write，以及 cache read / prompt tokens；
 - 与缓存数据并列的新增、移除、修改和移动贡献项。
 
 选择插件可以查看它贡献的命名 section、runtime context、tool 和 plugin message。完整 prompt 文本和 JSON schema 只有在选择 **Reveal content** 后才会读取，不会包含在初始 snapshot 响应里。
@@ -116,14 +116,19 @@ export function apply(ctx: Context): void {
 Context Lens 把 Provider 的 token accounting 与结构性贡献变化并列展示。Cache read 占比计算方式为：
 
 ```text
-cache read / (uncached input + cache read + cache write)
+cache read / prompt tokens
 ```
 
-这些 Provider 数据与插件 token 估算始终分开。贡献变化与 cache 变化同时出现，可以作为调试 prefix 稳定性的相关性线索，但不能证明二者存在因果关系。如果 Provider 没有报告 cache 字段，Lens 会明确显示数据缺失，不会推算命中率。
+其中 `prompt tokens = uncached input + cache read`，对应 DeepSeek 的 `prompt_tokens` 恒等式（`hit + miss`）。Cache write 只在 Provider 报告时展示，且不进入分母。DeepSeek 不报告 cache write。
+
+这些 Provider 数据与插件 token 估算始终分开。贡献变化与 cache 变化同时出现，可以作为调试 prefix 稳定性的相关性线索，但不能证明二者存在因果关系。如果 Provider 没有报告 cache 字段，Lens 会明确显示数据缺失，不会推算命中率。只有 write、没有 read 时也不会显示读取占比。
 
 ## 准确度模型
 
-- 插件占比使用与 DSH token-meter 相同的固定密度估算器，并始终显示 `≈`。
+- 标题总量在有 Provider usage 时使用 `inputTokens + cacheReadTokens`。贡献者行和 Reader 份额仍用 token-meter 估算，并始终显示 `≈`。
+- 估算器与 DSH token-meter 相同，按 chars/4 计密度，不是 DeepSeek tokenizer。对照 `deepseek-v4-flash`：英文长 prompt 接近 1×，中文大约低估 2×，tool schema 大约低估 2.4×，短请求会漏掉大约 70 个模板 token。
+- 不要把估算当成 Provider 真值，也不要用 CJK 系数去“修正”它。Provider 不会按插件报告 token，插件份额没有可对照的真值。
+- 在 DeepSeek 上，cache read 和 `hit / (miss + hit)` 是真实报告。缺失的 cache 字段保持省略，Lens 不会把 write 或命中率填成 `0`。
 - Provider input 和 cache token 按原始报告展示，不会重新分摊给各插件。
 - 只有捕获到的结构化 assembly 渲染结果与最终 `request/header.system` 完全一致时，才保留 live system section 边界。若不匹配，完整 system prompt 会折叠为 `Unattributed`，不会猜测。
 - Cold Session 通过 `sessionPersistence.inspect()` 读取并从日志重建。结构化 system 边界只存在于当前进程，因此 cold request 通常使用保守的扁平 fallback。

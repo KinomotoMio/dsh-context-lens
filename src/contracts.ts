@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-/** Wire revision for the private Host-to-Lens RPC. */
-export const CONTEXT_LENS_WIRE_VERSION = 1 as const
+/** Wire revision for the private Host-to-Lens RPC. v2 adds optional snapshot.reportedTokens. */
+export const CONTEXT_LENS_WIRE_VERSION = 2 as const
 
 export const ownerCategorySchema = z.enum([
   'plugin',
@@ -120,6 +120,7 @@ export const snapshotSchema = z.object({
   selected: requestCatalogItemSchema,
   previousKey: z.string().optional(),
   estimatedTokens: z.number().int().nonnegative(),
+  reportedTokens: z.number().int().nonnegative().optional(),
   attributedTokens: z.number().int().nonnegative(),
   attributionPercent: z.number().min(0).max(100),
   contributors: z.array(contributorSchema),

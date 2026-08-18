@@ -43,6 +43,7 @@ function snapshot(cacheReported = true): ContextLensSnapshot {
       provider: 'mock',
     },
     estimatedTokens: 120,
+    reportedTokens: 100,
     attributedTokens: 120,
     attributionPercent: 100,
     contributors: [{
@@ -217,15 +218,54 @@ describe('LensView', () => {
     const reported = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value: snapshot() }))
     const view = render(<LensView {...props({ call: reported })} />)
     expect(await screen.findByText('70%')).toBeTruthy()
-    expect(screen.getByText('cache read')).toBeTruthy()
+    expect(screen.getByText('cache read / prompt tokens')).toBeTruthy()
+    const reportedPanel = screen.getByRole('region', { name: 'Reported context' })
+    expect(within(reportedPanel).getByText('100')).toBeTruthy()
+    expect(within(reportedPanel).queryByText(/≈/)).toBeNull()
+    expect(screen.getByLabelText('100 reported tokens')).toBeTruthy()
 
     view.unmount()
-    const absent = vi.fn<ClientConnectionRpc['call']>(async () => ({
+    const absent = snapshot(false)
+    delete (absent as { reportedTokens?: number }).reportedTokens
+    const absentCall = vi.fn<ClientConnectionRpc['call']>(async () => ({
       ok: true,
-      value: snapshot(false),
+      value: absent,
     }))
-    render(<LensView {...props({ call: absent })} />)
+    render(<LensView {...props({ call: absentCall })} />)
     expect(await screen.findByText('Provider did not report cache usage')).toBeTruthy()
+    const estimatedPanel = screen.getByRole('region', { name: 'Estimated context' })
+    expect(within(estimatedPanel).getByText('≈120')).toBeTruthy()
+  })
+
+  it('hides cache write and does not invent a hit rate', async () => {
+    const value = snapshot()
+    value.cache = {
+      reported: true,
+      uncachedInputTokens: 123,
+      cacheReadTokens: 896,
+      billedInputTokens: 1019,
+      hitPercent: 896 / 1019 * 100,
+    }
+    value.reportedTokens = 1019
+    const withRead = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value }))
+    const view = render(<LensView {...props({ call: withRead })} />)
+    expect(await screen.findByText('cache read / prompt tokens')).toBeTruthy()
+    expect(screen.queryByText('cache write')).toBeNull()
+
+    view.unmount()
+    const writeOnly = snapshot()
+    writeOnly.cache = {
+      reported: true,
+      uncachedInputTokens: 40,
+      cacheWriteTokens: 12,
+      billedInputTokens: 40,
+    }
+    writeOnly.reportedTokens = 40
+    const writeCall = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value: writeOnly }))
+    render(<LensView {...props({ call: writeCall })} />)
+    expect(await screen.findByText('Provider did not report a cache read share')).toBeTruthy()
+    expect(screen.getByText('cache write')).toBeTruthy()
+    expect(screen.queryByText('70%')).toBeNull()
   })
 
   it('switches request keys through the snapshot RPC', async () => {
