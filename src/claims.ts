@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { Service } from '@deepseek-ai/cordis'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { ContributionOwner } from './contracts.ts'
 import { DSH_RC7_MANIFEST, type BuiltinManifestEntry } from './manifest.ts'
 
@@ -114,6 +114,80 @@ function packageVersion(plugin: string): string | undefined {
   }
 }
 
+interface LoaderNamedFiber {
+  readonly state: Fiber['state']
+  readonly entry?: { readonly options?: { readonly name?: string } }
+}
+
+/** Package ids of ACTIVE loader fibers on the shared Cordis registry. */
+export function loadedPackageIds(ctx: Context): ReadonlySet<string> {
+  const loaded = new Set<string>()
+  for (const runtime of ctx.registry.values()) {
+    for (const fiber of runtime.fibers) {
+      const named = fiber as LoaderNamedFiber
+      if (named.state !== 2 /* FiberState.ACTIVE */) continue
+      const packageId = named.entry?.options?.name
+      if (typeof packageId === 'string' && packageId.length > 0) loaded.add(packageId)
+    }
+  }
+  return loaded
+}
+
+/**
+ * Whether `fiber` is `root` itself or is mounted anywhere inside its subtree.
+ * Membership is object identity, matching DSH (`current.parent.fiber`, stop when parent === current).
+ */
+export function withinFiber(fiber: Fiber, root: Fiber): boolean {
+  let current = fiber
+  while (true) {
+    if (current === root) return true
+    const parent = current.parent.fiber
+    if (parent === current) return false
+    current = parent
+  }
+}
+
+/** Scope used to decide which ACTIVE loader fibers count as loaded for one analysis. */
+export interface LoadedPackageScope {
+  readonly presetRoot?: Fiber
+  readonly otherPresetRoots?: readonly Fiber[]
+}
+
+/**
+ * Package ids of ACTIVE loader fibers visible to one session.
+ * Include fibers inside `presetRoot` when it is set; otherwise include host-plane
+ * fibers that are not inside any `otherPresetRoots`. A missing `presetRoot` still
+ * drops other presets so a cold session does not inherit another preset's bash.
+ */
+export function loadedPackageIdsInScope(ctx: Context, scope: LoadedPackageScope): ReadonlySet<string> {
+  const loaded = new Set<string>()
+  const others = scope.otherPresetRoots ?? []
+  for (const runtime of ctx.registry.values()) {
+    for (const fiber of runtime.fibers) {
+      const named = fiber as LoaderNamedFiber
+      if (named.state !== 2 /* FiberState.ACTIVE */) continue
+      const packageId = named.entry?.options?.name
+      if (typeof packageId !== 'string' || packageId.length === 0) continue
+      if (scope.presetRoot !== undefined && withinFiber(fiber, scope.presetRoot)) {
+        loaded.add(packageId)
+        continue
+      }
+      if (!others.some(root => withinFiber(fiber, root))) loaded.add(packageId)
+    }
+  }
+  return loaded
+}
+
+/** Drop version-matched builtin owners whose plugin is not currently mounted. */
+export function selectLoadedOwners<T extends { readonly id: string }>(
+  records: readonly T[] | undefined,
+  loaded: ReadonlySet<string>,
+): T[] | undefined {
+  if (records === undefined || records.length === 0) return undefined
+  const present = records.filter(record => loaded.has(record.id))
+  return present.length === 0 ? undefined : present
+}
+
 function enableManifest(
   table: ClaimTable,
   manifest: readonly BuiltinManifestEntry[],
@@ -151,7 +225,7 @@ function ownerResult(
 
 /**
  * Exact contribution registry. Live callers are resolved before operator config,
- * then the version-verified first-party manifest.
+ * then the version-verified first-party manifest for packages that are loaded.
  */
 export class PluginContextLens extends Service {
   private readonly live: ClaimTable = new Map()
@@ -186,11 +260,11 @@ export class PluginContextLens extends Service {
   }
 
   /** Resolve one exact section, context, or tool name without inference. */
-  resolve(kind: ClaimKind, name: string): ContributionOwner {
+  resolve(kind: ClaimKind, name: string, loaded?: ReadonlySet<string>): ContributionOwner {
     const key = tableKey(kind, name)
     return ownerResult(this.live.get(key), 'claim')
       ?? ownerResult(this.configured.get(key), 'config')
-      ?? ownerResult(this.builtin.get(key), 'manifest')
+      ?? ownerResult(selectLoadedOwners(this.builtin.get(key), loaded ?? loadedPackageIds(this.ctx)), 'manifest')
       ?? UNATTRIBUTED_OWNER
   }
 }

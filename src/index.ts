@@ -8,7 +8,9 @@ import type {
   RpcErrorDetailsMap,
   RpcResult,
 } from '@deepseek-ai/dsh-host-apiproxy/api'
-import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
+import { livePresetMounts, standingMountFor, resolveSessionPreset } from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-system-prompt'
@@ -16,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-token-meter'
 import { analyzeContext, type AnalysisResult } from './analyzer.ts'
 import {
   PluginContextLens,
+  loadedPackageIdsInScope,
   type ConfiguredContextLensClaim,
 } from './claims.ts'
 import {
@@ -120,11 +123,15 @@ export function apply(ctx: Context, config: Config = {}): void {
   const assemblies = new LiveAssemblyStore(ctx, config.liveAssemblyRetention ?? 2)
   const requestHistoryLimit = config.requestHistoryLimit ?? 50
 
-  const readEvents = async (rawSessionId: string, signal: AbortSignal): Promise<readonly SessionEvent[]> => {
+  const readEvents = async (rawSessionId: string, signal: AbortSignal): Promise<{
+    readonly events: readonly SessionEvent[]
+    readonly header: SessionHeader | undefined
+  }> => {
     const sessionId = SessionId(rawSessionId)
     const attached = ctx.sessions.get(sessionId)
-    if (attached !== undefined) return attached.events
-    return (await ctx.sessionPersistence.inspect(sessionId, signal)).events
+    if (attached !== undefined) return { events: attached.events, header: attached.header }
+    const inspected = await ctx.sessionPersistence.inspect(sessionId, signal)
+    return { events: inspected.events, header: inspected.meta }
   }
 
   const analyze = async (
@@ -133,13 +140,26 @@ export function apply(ctx: Context, config: Config = {}): void {
     signal: AbortSignal,
   ): Promise<AnalysisResult> => {
     const sessionId = SessionId(rawSessionId)
-    const events = await readEvents(rawSessionId, signal)
+    const { events, header } = await readEvents(rawSessionId, signal)
+    const agent = ctx.get('agents')?.get(sessionId)
+    const mounts = livePresetMounts()
+    const thisMount = agent !== undefined
+      ? standingMountFor(agent.ctx)
+      : mounts.find(m => m.presetId === resolveSessionPreset({
+          events,
+          header: header ?? { version: 0, id: sessionId, createdAt: 0 },
+        }))
+    const loadedPlugins = loadedPackageIdsInScope(ctx, {
+      ...(thisMount === undefined ? {} : { presetRoot: thisMount.fiber }),
+      otherPresetRoots: mounts.filter(m => m.fiber !== thisMount?.fiber).map(m => m.fiber),
+    })
     return analyzeContext({
       sessionId,
       events,
       ...(requestedKey === undefined ? {} : { requestKey: requestedKey }),
       requestHistoryLimit,
       claims,
+      loadedPlugins,
       verifiedSections: (requestKey, system) =>
         assemblies.verifiedSections(sessionId, requestKey, system),
       surfaceTokens: (cutoffSeq) => {

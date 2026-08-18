@@ -106,10 +106,10 @@ export function apply(ctx: Context): void {
 1. contribution event 的 `source.plugin`；
 2. 贡献方 fiber 注册的 live `claim()`；
 3. 操作者配置的 claim；
-4. 内置 DSH manifest，并且逐包要求版本完全匹配；
+4. 内置 DSH manifest，逐包要求版本完全匹配，并且该包在本 session 的 standing preset（或 host-plane）里有 active fiber；
 5. `Unattributed`。
 
-同一优先级出现两个 owner 时显示为 `Conflicted`，Harness 会继续运行。首个内置 manifest 覆盖 DSH `0.1.0-rc.7`。如果某个已安装包的版本不匹配，该包不会使用 manifest 归因，Lens 会显示准确度说明。
+同一优先级出现两个 owner 时显示为 `Conflicted`，Harness 会继续运行。Context Lens `0.1.0` 对照 DSH `0.1.0-rc.7`（当前 npm latest）验证。已安装但版本不匹配的包不会用这份 manifest 归因，并产生准确度说明。已安装但不在本 session 的 standing preset（或 host-plane）里的包也不会占用该名称，所以同一 tool 的备选实现不会变成 `Conflicted`。同一进程里 standing 挂着的 `minimal` 不能让 `standard` session 在 `bash` 上变成 `Conflicted`。
 
 ## KV cache 分析
 
