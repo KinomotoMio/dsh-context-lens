@@ -4,7 +4,9 @@
 
 > See what every plugin puts into the model.
 
-DSH Context Lens is a read-only observability plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It adds a **Lens** view beside Chat and Trajectory, reconstructs each ordinary Agent request, and shows which plugins contributed its system prompt, runtime context, tools, and plugin messages.
+DSH Context Lens is a read-only observability plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Trajectory records tool calls and other execution steps. Context Lens names the source: what tools, what context, and what operations each plugin contributed. It adds a **Lens** view beside Chat and Trajectory, reconstructs each ordinary Agent request, and shows which plugins contributed its system prompt, runtime context, tools, and plugin messages.
+
+The same attribution will later be exposed as an Agent-callable interface for evaluation. The Agent can query which plugins built the current request. When a result is wrong, it can pass the suspected context to Lens, find the plugin that wrote it, and open that plugin's code.
 
 > [!WARNING]
 > **Work in progress.** Context Lens is under active development and may still contain substantial bugs or incomplete behavior. Plugin shares are estimated with DSH token-meter density, not the provider tokenizer. Headline totals and KV cache figures use provider usage when the adapter reported it. Verify important conclusions against the provider response, and please [open an issue](https://github.com/KinomotoMio/dsh-context-lens/issues/new) when something looks wrong.

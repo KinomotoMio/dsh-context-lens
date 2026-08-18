@@ -4,7 +4,9 @@
 
 > 看见每个插件向模型放入了什么。
 
-DSH Context Lens 是一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的只读可观测性插件。它在 Chat 和 Trajectory 旁添加独立的 **Lens** 视图，重建每次普通 Agent 请求，并展示 system prompt、runtime context、tools 和 plugin messages 分别由哪些插件贡献。
+DSH Context Lens 是一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的只读可观测性插件。Trajectory 记录工具调用等过程；Context Lens 标明来源：每个插件贡献了什么工具、什么上下文，做了什么操作。它在 Chat 和 Trajectory 旁添加独立的 **Lens** 视图，重建每次普通 Agent 请求，并展示 system prompt、runtime context、tools 和 plugin messages 分别由哪些插件贡献。
+
+后续会把同一套归因做成 Agent 可调用的接口，用来辅助评估。Agent 可以查询当前请求由哪些插件构成；当结果有误时，把可疑的上下文交给 Lens，查出是哪个插件写入的，再去修改那个插件的代码。
 
 > [!WARNING]
 > **项目仍在施工中。** Context Lens 正在积极开发，可能仍有不少问题或未完成的行为。部分指标可能不准确，尤其是估算上下文 token 数和 KV cache 读取/命中比例。重要结论请同时核对 Provider 报告的数据；如果发现异常，欢迎[提交 Issue](https://github.com/KinomotoMio/dsh-context-lens/issues/new)。
