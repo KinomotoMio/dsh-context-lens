@@ -8,8 +8,11 @@ import {
   CONTEXT_LENS_WIRE_VERSION,
   detailSchema,
   snapshotSchema,
+  type ChangeKind,
   type ContextLensDetail,
   type ContextLensSnapshot,
+  type ContributionKind,
+  type LensContribution,
   type LensContributor,
 } from '../contracts.ts'
 import type { LocaleKey } from './locales.ts'
@@ -25,6 +28,50 @@ type LensProps = ConvViewProps
   & PropsLocale<'plugin-context-lens'>
 
 type Translate = (key: LocaleKey) => string
+
+type InventoryGroup = 'contexts' | 'tools' | 'operations' | 'messages' | 'framing'
+
+const KIND_GROUP = {
+  'runtime-context': 'contexts',
+  'system-section': 'contexts',
+  'system-prompt': 'contexts',
+  'tool': 'tools',
+  'plugin-message': 'operations',
+  'conversation-message': 'messages',
+  'framing': 'framing',
+} as const satisfies Record<ContributionKind, InventoryGroup>
+
+const GROUP_ORDER = ['contexts', 'tools', 'operations', 'messages', 'framing'] as const satisfies readonly InventoryGroup[]
+
+const GROUP_LABEL = {
+  contexts: 'inventory.contexts',
+  tools: 'inventory.tools',
+  operations: 'inventory.operations',
+  messages: 'inventory.messages',
+  framing: 'inventory.framing',
+} as const satisfies Record<InventoryGroup, LocaleKey>
+
+const CHANGE_MARK = {
+  added: '+',
+  removed: '−',
+  changed: '~',
+  moved: '↕',
+} as const satisfies Record<Exclude<ChangeKind, 'unchanged'>, string>
+
+function inventoryGroups(contributions: readonly LensContribution[]): { key: InventoryGroup; items: LensContribution[] }[] {
+  const buckets = new Map<InventoryGroup, LensContribution[]>()
+  for (const item of contributions) {
+    const key = KIND_GROUP[item.kind]
+    const list = buckets.get(key)
+    if (list === undefined) buckets.set(key, [item])
+    else list.push(item)
+  }
+  return GROUP_ORDER.flatMap((key) => {
+    const items = buckets.get(key)
+    return items === undefined || items.length === 0 ? [] : [{ key, items }]
+  })
+}
+
 type LensMode = 'breakdown' | 'reader'
 
 const MODES = ['breakdown', 'reader'] as const satisfies readonly LensMode[]
@@ -217,6 +264,7 @@ function ContributorRow({
 }) {
   const [open, setOpen] = useState(false)
   const color = colorFor(contributor.owner.id)
+  const groups = inventoryGroups(contributor.contributions)
   return (
     <article className={css.contributor}>
       <button
@@ -225,22 +273,44 @@ function ContributorRow({
         aria-expanded={open}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.swatch} style={{ backgroundColor: color }} aria-hidden="true" />
-        <span className={css.ownerText}>
-          <strong>{contributor.owner.label}</strong>
-          <small>{contributor.owner.id}</small>
+        <span className={css.contributorLead}>
+          <span className={css.swatch} style={{ backgroundColor: color }} aria-hidden="true" />
+          <span className={css.ownerText}>
+            <strong>{contributor.owner.label}</strong>
+            <small>{contributor.owner.id}</small>
+          </span>
+          <span className={css.ownerDelta} data-positive={contributor.deltaTokens > 0}>
+            {delta(contributor.deltaTokens)}
+          </span>
+          <span className={css.ownerTokens}>≈{formatTokens(contributor.tokens)}</span>
+          <span className={css.ownerPercent}>{formatPercent(contributor.percent)}</span>
+          <IconChevronDownOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
         </span>
-        <span className={css.ownerCount}>
-          {contributor.contributions.length} {contributor.contributions.length === 1
-            ? t('contribution')
-            : t('contributions')}
-        </span>
-        <span className={css.ownerDelta} data-positive={contributor.deltaTokens > 0}>
-          {delta(contributor.deltaTokens)}
-        </span>
-        <span className={css.ownerTokens}>≈{formatTokens(contributor.tokens)}</span>
-        <span className={css.ownerPercent}>{formatPercent(contributor.percent)}</span>
-        <IconChevronDownOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
+        {groups.length > 0 && (
+          <span className={css.ownerInventory}>
+            {groups.map(group => (
+              <span className={css.inventoryGroup} key={group.key}>
+                <span className={css.inventoryLabel}>{t(GROUP_LABEL[group.key])}</span>
+                {group.items.map(item => (
+                  <span
+                    className={css.inventoryItem}
+                    key={item.id}
+                    title={item.change === 'unchanged'
+                      ? item.name
+                      : `${item.name} · ${t(`change.${item.change}` as LocaleKey)}`}
+                  >
+                    <span className={css.inventoryName}>{item.name}</span>
+                    {item.change !== 'unchanged' && (
+                      <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
+                        {CHANGE_MARK[item.change]}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </span>
+        )}
       </button>
       {open && (
         <div className={css.contributionList}>
