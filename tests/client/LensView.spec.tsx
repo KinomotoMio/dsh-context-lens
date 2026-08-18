@@ -168,17 +168,29 @@ describe('LensView', () => {
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Breakdown' }), { key: 'ArrowRight' })
     const panel = await screen.findByRole('tabpanel', { name: 'Reader' })
     expect(await within(panel).findByText('System from Plugin One.')).toBeTruthy()
-    const blocks = within(panel).getAllByRole('article')
-    expect(blocks.map(block => block.getAttribute('data-owner'))).toEqual([
+    expect(within(panel).queryAllByRole('article')).toEqual([])
+    const rows = within(panel).getAllByRole('row').filter(row => row.hasAttribute('data-kind'))
+    expect(rows.map(row => row.getAttribute('data-owner'))).toEqual([
       '@example/plugin',
       '@example/plugin-two',
       '@example/plugin',
     ])
-    expect(within(panel).getByText('description')).toBeTruthy()
+    expect(rows.map(row => row.getAttribute('data-kind'))).toEqual([
+      'system-section',
+      'tool',
+      'plugin-message',
+    ])
+    expect(within(rows[0]!).getByText('SYSTEM')).toBeTruthy()
+    expect(within(rows[0]!).getByText('Plugin One')).toBeTruthy()
+    expect(within(rows[1]!).getByText('TOOL')).toBeTruthy()
+    expect(within(rows[1]!).getByText('Plugin Two')).toBeTruthy()
+    fireEvent.click(rows[1]!)
+    const inspector = within(panel).getByRole('complementary', { name: 'Inspect contribution' })
+    expect(within(inspector).getByText('description')).toBeTruthy()
     fireEvent.click(within(panel).getByRole('button', { name: 'Raw' }))
-    expect(within(panel).getByText(/"name":"search"/)).toBeTruthy()
+    expect(within(inspector).getByText(/"name":"search"/)).toBeTruthy()
     fireEvent.click(within(panel).getByRole('button', { name: 'Plugin Two' }))
-    expect(blocks.map(block => block.getAttribute('data-dimmed'))).toEqual(['true', null, 'true'])
+    expect(rows.map(row => row.getAttribute('data-dimmed'))).toEqual(['true', null, 'true'])
     expect(call).toHaveBeenLastCalledWith(
       '/dsh-plugin-context-lens',
       'document',
