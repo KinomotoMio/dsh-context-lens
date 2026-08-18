@@ -106,10 +106,10 @@ Resolution order is:
 1. the contribution event's `source.plugin`;
 2. a live `claim()` from the contributing fiber;
 3. an operator-configured claim;
-4. the built-in DSH manifest, one package at a time and only on an exact version match;
+4. the built-in DSH manifest, one package at a time, only on an exact version match, and only while that package has an active fiber in this session's standing preset (or on the host plane);
 5. `Unattributed`.
 
-Two owners at the same priority produce `Conflicted`; the Harness continues running. The first built-in manifest covers DSH `0.1.0-rc.7`. A package whose installed version differs is not attributed from that manifest and produces an accuracy note in the Lens.
+Two owners at the same priority produce `Conflicted`; the Harness continues running. Context Lens `0.1.0` is verified against DSH `0.1.0-rc.7` (the current npm latest). A package whose installed version differs is not attributed from that manifest and produces an accuracy note. A package that is installed but not mounted in this session's standing preset (or on the host plane) is also left out of that name, so alternate implementations of the same tool do not become `Conflicted`. A standing `minimal` mount in the same process must not make a `standard` session `Conflicted` on `bash`.
 
 ## KV cache analysis
 

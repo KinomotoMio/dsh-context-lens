@@ -86,6 +86,7 @@ export interface AnalyzeOptions {
     system: string,
   ) => readonly VerifiedSystemSection[] | undefined
   readonly warnings?: readonly string[]
+  readonly loadedPlugins?: ReadonlySet<string>
 }
 
 function keyOf(turn: number, step: number): string {
@@ -235,6 +236,7 @@ function systemContributions(
   claims: PluginContextLens,
   sections: readonly VerifiedSystemSection[] | undefined,
   orderStart: number,
+  loaded?: ReadonlySet<string>,
 ): { rows: RawContribution[]; verified: boolean } {
   const system = request.header?.system ?? ''
   if (system.length === 0) return { rows: [], verified: sections !== undefined }
@@ -268,7 +270,7 @@ function systemContributions(
     identity: `system-section:${section.name}`,
     kind: 'system-section',
     name: section.name,
-    owner: claims.resolve('section', section.name),
+    owner: claims.resolve('section', section.name, loaded),
     plane: 'system',
     tokens: allocation.get(`section:${index}`) ?? 0,
     order: orderStart + index,
@@ -293,6 +295,7 @@ function toolContributions(
   tools: readonly ToolSchema[],
   claims: PluginContextLens,
   orderStart: number,
+  loaded?: ReadonlySet<string>,
 ): RawContribution[] {
   if (tools.length === 0) return []
   const total = estimateTools(tools)
@@ -307,7 +310,7 @@ function toolContributions(
     identity: `tool:${tool.name}`,
     kind: 'tool',
     name: tool.name,
-    owner: claims.resolve('tool', tool.name),
+    owner: claims.resolve('tool', tool.name, loaded),
     plane: 'tools',
     tokens: allocation.get(`tool:${index}`) ?? 0,
     order: orderStart + index,
@@ -348,6 +351,7 @@ function snapshotMessageContributions(
   total: number,
   claims: PluginContextLens,
   orderStart: number,
+  loaded?: ReadonlySet<string>,
 ): RawContribution[] {
   const sectionLength = source.sections.reduce((sum, section) => sum + section.text.length, 0)
   const contentLength = JSON.stringify(message.content).length
@@ -360,7 +364,7 @@ function snapshotMessageContributions(
     identity: `runtime-context:${section.name}`,
     kind: 'runtime-context',
     name: section.name,
-    owner: claims.resolve('context', section.name),
+    owner: claims.resolve('context', section.name, loaded),
     plane: 'messages',
     tokens: allocation.get(`context:${index}`) ?? 0,
     order: orderStart + index,
@@ -387,6 +391,7 @@ function messageContributions(
   claims: PluginContextLens,
   meteredTokens: ReadonlyMap<number, number>,
   orderStart: number,
+  loaded?: ReadonlySet<string>,
 ): RawContribution[] {
   const prefix = events.slice(0, cutoffSeq)
   const surface = foldSurface(prefix)
@@ -404,6 +409,7 @@ function messageContributions(
         tokens,
         claims,
         orderStart + rows.length,
+        loaded,
       ))
       continue
     }
@@ -429,15 +435,17 @@ function contributionsFor(
   claims: PluginContextLens,
   verifiedSections: readonly VerifiedSystemSection[] | undefined,
   meteredTokens: ReadonlyMap<number, number>,
+  loaded?: ReadonlySet<string>,
 ): { rows: RawContribution[]; verified: boolean } {
-  const system = systemContributions(request, claims, verifiedSections, 0)
-  const tools = toolContributions(request.header?.tools ?? [], claims, system.rows.length)
+  const system = systemContributions(request, claims, verifiedSections, 0, loaded)
+  const tools = toolContributions(request.header?.tools ?? [], claims, system.rows.length, loaded)
   const messages = messageContributions(
     events,
     request.cutoffSeq,
     claims,
     meteredTokens,
     system.rows.length + tools.length,
+    loaded,
   )
   return { rows: [...system.rows, ...tools, ...messages], verified: system.verified }
 }
@@ -560,6 +568,7 @@ export function analyzeContext(options: AnalyzeOptions): AnalysisResult {
     options.claims,
     selectedVerified,
     options.surfaceTokens(selected.cutoffSeq),
+    options.loadedPlugins,
   )
   const previousSet = previous === undefined
     ? { rows: [] as RawContribution[], verified: false }
@@ -569,6 +578,7 @@ export function analyzeContext(options: AnalyzeOptions): AnalysisResult {
         options.claims,
         options.verifiedSections(previous.key, previous.header?.system ?? ''),
         options.surfaceTokens(previous.cutoffSeq),
+        options.loadedPlugins,
       )
   const built = contributionRows(currentSet.rows, previousSet.rows, selected.key)
   const grouped = contributors(built.rows, previousSet.rows)
