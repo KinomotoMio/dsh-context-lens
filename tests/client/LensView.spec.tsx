@@ -239,7 +239,7 @@ describe('LensView', () => {
     render(<LensView {...props({ call })} />)
 
     expect(await screen.findByText('Filesystem')).toBeTruthy()
-    expect(screen.getByText('Plugin inventory · then estimated share')).toBeTruthy()
+    expect(screen.getByText(/Plugin inventory · then estimated share/)).toBeTruthy()
     expect(screen.getByText('Contexts')).toBeTruthy()
     expect(screen.getByText('Tools')).toBeTruthy()
     expect(screen.getByText('Operations')).toBeTruthy()
