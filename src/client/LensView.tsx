@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, IconChevronDownOutline14, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14, IconPlayOutline16, IconSettingsOutline16, IconSparkle16, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   CONTEXT_LENS_RPC_CHANNEL,
   CONTEXT_LENS_WIRE_VERSION,
@@ -50,6 +50,53 @@ const GROUP_LABEL = {
   messages: 'inventory.messages',
   framing: 'inventory.framing',
 } as const satisfies Record<InventoryGroup, LocaleKey>
+
+function ToolWrenchIcon(): ReactNode {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-role-icon="wrench"
+      aria-hidden="true"
+    >
+      <path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z" />
+    </svg>
+  )
+}
+
+function InformationIcon(): ReactNode {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      data-role-icon="information"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6.7" />
+      <circle cx="8" cy="5.5" r=".85" fill="currentColor" stroke="none" />
+      <path d="M8 7.75v3.4" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+const GROUP_ICON = {
+  contexts: <InformationIcon />,
+  tools: <ToolWrenchIcon />,
+  operations: <IconPlayOutline16 size={13} />,
+  messages: <IconSparkle16 size={13} />,
+  framing: <IconSettingsOutline16 size={13} />,
+} as const satisfies Record<InventoryGroup, ReactNode>
 
 const CHANGE_MARK = {
   added: '+',
@@ -290,7 +337,10 @@ function ContributorRow({
           <span className={css.ownerInventory}>
             {groups.map(group => (
               <span className={css.inventoryGroup} key={group.key}>
-                <span className={css.inventoryLabel}>{t(GROUP_LABEL[group.key])}</span>
+                <span className={css.inventoryLabel}>
+                  <span aria-hidden="true">{GROUP_ICON[group.key]}</span>
+                  {t(GROUP_LABEL[group.key])}
+                </span>
                 {group.items.map(item => (
                   <span
                     className={css.inventoryItem}

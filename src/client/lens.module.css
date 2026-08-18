@@ -343,8 +343,17 @@
 }
 
 .inventoryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xxxs-11);
+}
+
+.inventoryLabel svg {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  display: block;
 }
 
 .inventoryItem {
