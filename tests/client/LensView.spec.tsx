@@ -247,6 +247,7 @@ describe('LensView', () => {
     expect(screen.getByText('Tools').querySelector('svg')).toBeTruthy()
     expect(screen.getByText('Operations').querySelector('svg')).toBeTruthy()
     expect(screen.getByText('fs-policy')).toBeTruthy()
+    expect(screen.getByText('Added')).toBeTruthy()
     expect(screen.getByText('read')).toBeTruthy()
     expect(screen.getByText('write')).toBeTruthy()
     expect(screen.getByText('edit')).toBeTruthy()

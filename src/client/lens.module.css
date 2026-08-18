@@ -395,6 +395,15 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .chevron {
   color: var(--dsw-alias-label-tertiary);
   transition: transform 120ms var(--ds-ease-in-out);

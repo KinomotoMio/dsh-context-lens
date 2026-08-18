@@ -351,9 +351,12 @@ function ContributorRow({
                   >
                     <span className={css.inventoryName}>{item.name}</span>
                     {item.change !== 'unchanged' && (
-                      <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
-                        {CHANGE_MARK[item.change]}
-                      </span>
+                      <>
+                        <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
+                          {CHANGE_MARK[item.change]}
+                        </span>
+                        <span className={css.srOnly}>{t(`change.${item.change}` as LocaleKey)}</span>
+                      </>
                     )}
                   </span>
                 ))}
