@@ -27,7 +27,7 @@ type LensProps = ConvViewProps
   & InjectFace<LensViewInjected>
   & PropsLocale<'plugin-context-lens'>
 
-type Translate = (key: LocaleKey) => string
+type Translate = (key: LocaleKey, params?: Record<string, unknown>) => string
 
 type InventoryGroup = 'contexts' | 'tools' | 'operations' | 'messages' | 'framing'
 
@@ -42,6 +42,8 @@ const KIND_GROUP = {
 } as const satisfies Record<ContributionKind, InventoryGroup>
 
 const GROUP_ORDER = ['contexts', 'tools', 'operations', 'messages', 'framing'] as const satisfies readonly InventoryGroup[]
+
+const INVENTORY_COLLAPSED_LIMIT = 4
 
 const GROUP_LABEL = {
   contexts: 'inventory.contexts',
@@ -335,33 +337,44 @@ function ContributorRow({
         </span>
         {groups.length > 0 && (
           <span className={css.ownerInventory}>
-            {groups.map(group => (
-              <span className={css.inventoryGroup} key={group.key}>
-                <span className={css.inventoryLabel}>
-                  <span aria-hidden="true">{GROUP_ICON[group.key]}</span>
-                  {t(GROUP_LABEL[group.key])}
-                </span>
-                {group.items.map(item => (
-                  <span
-                    className={css.inventoryItem}
-                    key={item.id}
-                    title={item.change === 'unchanged'
-                      ? item.name
-                      : `${item.name} · ${t(`change.${item.change}` as LocaleKey)}`}
-                  >
-                    <span className={css.inventoryName}>{item.name}</span>
-                    {item.change !== 'unchanged' && (
-                      <>
-                        <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
-                          {CHANGE_MARK[item.change]}
-                        </span>
-                        <span className={css.srOnly}>{t(`change.${item.change}` as LocaleKey)}</span>
-                      </>
-                    )}
+            {groups.map((group) => {
+              const visible = group.items.slice(0, INVENTORY_COLLAPSED_LIMIT)
+              const overflow = group.items.length - visible.length
+              return (
+                <span className={css.inventoryGroup} key={group.key}>
+                  <span className={css.inventoryLabel}>
+                    <span aria-hidden="true">{GROUP_ICON[group.key]}</span>
+                    {t(GROUP_LABEL[group.key])}
                   </span>
-                ))}
-              </span>
-            ))}
+                  {visible.map(item => (
+                    <span
+                      className={css.inventoryItem}
+                      key={item.id}
+                      title={item.change === 'unchanged'
+                        ? item.name
+                        : `${item.name} · ${t(`change.${item.change}` as LocaleKey)}`}
+                    >
+                      <span className={css.inventoryName}>{item.name}</span>
+                      {item.change !== 'unchanged' && (
+                        <>
+                          <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
+                            {CHANGE_MARK[item.change]}
+                          </span>
+                          <span className={css.srOnly}>{t(`change.${item.change}` as LocaleKey)}</span>
+                        </>
+                      )}
+                    </span>
+                  ))}
+                  {overflow > 0 && (
+                    <span className={css.inventoryItem}>
+                      <span className={css.inventoryName}>
+                        {t('inventory.more', { n: overflow })}
+                      </span>
+                    </span>
+                  )}
+                </span>
+              )
+            })}
           </span>
         )}
       </button>

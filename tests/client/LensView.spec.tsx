@@ -176,7 +176,12 @@ function props(rpc: ClientConnectionRpc): ComponentProps<typeof LensView> {
     sessionId: 'session-1',
     useSession: selector => selector(session as never),
     rpc,
-    t: key => en[key as LocaleKey],
+    t: (key, params) => {
+      const template = en[key as LocaleKey]
+      if (params === undefined) return template
+      return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+        Object.hasOwn(params, name) ? String(params[name]) : match)
+    },
   } as ComponentProps<typeof LensView>
 }
 
@@ -396,6 +401,44 @@ describe('LensView', () => {
         expect.any(AbortSignal),
       )
     })
+  })
+
+  it('caps collapsed inventory chips per group and keeps the rest after expand', async () => {
+    const tools = ['read', 'write', 'edit', 'glob', 'grep', 'bash'] as const
+    const value = snapshot()
+    value.contributors = [{
+      owner: OWNER,
+      tokens: 60,
+      percent: 100,
+      deltaTokens: 0,
+      contributions: tools.map((name, index) => ({
+        id: `tool:${name}`,
+        kind: 'tool' as const,
+        name,
+        owner: OWNER,
+        tokens: 10,
+        percent: 16,
+        deltaTokens: 0,
+        change: 'unchanged' as const,
+        order: index,
+        detailRef: `1:1:${index}:${name}`,
+      })),
+    }]
+    const call = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value }))
+    render(<LensView {...props({ call })} />)
+
+    expect(await screen.findByText('read')).toBeTruthy()
+    expect(screen.getByText('write')).toBeTruthy()
+    expect(screen.getByText('edit')).toBeTruthy()
+    expect(screen.getByText('glob')).toBeTruthy()
+    expect(screen.getByText('+2 more')).toBeTruthy()
+    expect(screen.queryByText('grep')).toBeNull()
+    expect(screen.queryByText('bash')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Plugin One/ }))
+    expect(await screen.findByText('Reveal content')).toBeTruthy()
+    expect(screen.getByText('grep')).toBeTruthy()
+    expect(screen.getByText('bash')).toBeTruthy()
   })
 
   it('keeps conflicted, unattributed, and version-drift states explicit', async () => {
