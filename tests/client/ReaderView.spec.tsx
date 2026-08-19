@@ -185,4 +185,19 @@ describe('ReaderView', () => {
       'true',
     ])
   })
+
+  it('moves keyboard focus into the inspector and back to the row', async () => {
+    const call = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value: document() }))
+    render(<ReaderView {...props({ call })} />)
+    expect(await screen.findByText('System from Plugin One.')).toBeTruthy()
+
+    const row = rows()[2]!
+    fireEvent.keyDown(row, { key: 'Enter' })
+    const inspector = screen.getByRole('complementary', { name: 'Inspect contribution' })
+    expect(inspector === document.activeElement || inspector.contains(document.activeElement)).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('complementary')).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
 })

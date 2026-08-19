@@ -128,6 +128,7 @@ function ReaderRow({
   selected,
   t,
   onSelect,
+  rowRef,
 }: {
   readonly block: ContextLensDocumentBlock
   readonly color: string
@@ -135,6 +136,7 @@ function ReaderRow({
   readonly selected: boolean
   readonly t: Translate
   readonly onSelect: () => void
+  readonly rowRef: (element: HTMLTableRowElement | null) => void
 }) {
   const tone = KIND_TONE[block.kind]
   const pill = t(kindKey(block.kind))
@@ -145,6 +147,7 @@ function ReaderRow({
   }
   return (
     <tr
+      ref={rowRef}
       data-kind={block.kind}
       data-owner={block.owner.id}
       data-dimmed={dimmed ? 'true' : undefined}
@@ -188,6 +191,9 @@ export function ReaderView({
   const [focusedOwner, setFocusedOwner] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
+  const detailsRef = useRef<HTMLElement | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
+  const lastSelectedKey = useRef<string | null>(null)
   const loaded = document?.requestKey === requestKey
 
   useEffect(() => {
@@ -234,6 +240,17 @@ export function ReaderView({
     if (document === null || selectedKey === null) return null
     return document.blocks.find(block => blockKey(block) === selectedKey) ?? null
   }, [document, selectedKey])
+
+  useEffect(() => {
+    if (selectedKey !== null) {
+      lastSelectedKey.current = selectedKey
+      detailsRef.current?.focus()
+      return
+    }
+    const previous = lastSelectedKey.current
+    if (previous === null) return
+    rowRefs.current.get(previous)?.focus()
+  }, [selectedKey])
 
   if (document === null && loading) return <div className={css.readerState} role="status">{t('reader.loading')}</div>
   if (document === null && error !== null) {
@@ -319,6 +336,11 @@ export function ReaderView({
                       selected={selectedKey === blockKey(block)}
                       t={t}
                       onSelect={() => { setSelectedKey(blockKey(block)) }}
+                      rowRef={(element) => {
+                        const key = blockKey(block)
+                        if (element === null) rowRefs.current.delete(key)
+                        else rowRefs.current.set(key, element)
+                      }}
                     />
                   )),
                 ]
@@ -328,7 +350,17 @@ export function ReaderView({
         </div>
 
         {selected !== null && (
-          <aside className={css.readerDetails} aria-label={t('reader.inspect')}>
+          <aside
+            ref={detailsRef}
+            className={css.readerDetails}
+            aria-label={t('reader.inspect')}
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.preventDefault()
+              setSelectedKey(null)
+            }}
+          >
             <div className={css.readerDetailsHeader}>
               <div className={css.readerDetailsTitle}>
                 <span className={`${css.readerKindTag} ${TONE_CLASS[KIND_TONE[selected.kind]]}`}>
