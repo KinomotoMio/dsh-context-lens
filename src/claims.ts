@@ -224,10 +224,11 @@ function ownerResult(
 }
 
 /**
- * Exact contribution registry. Live callers are resolved before operator config,
- * then the version-verified first-party manifest for packages that are loaded.
+ * Exact contribution registry. Observed registrations resolve first, then live
+ * claim(), operator config, then the first-party manifest for loaded packages.
  */
 export class PluginContextLens extends Service {
+  readonly observed: ClaimTable = new Map()
   private readonly live: ClaimTable = new Map()
   private readonly configured: ClaimTable = new Map()
   private readonly builtin: ClaimTable = new Map()
@@ -262,7 +263,8 @@ export class PluginContextLens extends Service {
   /** Resolve one exact section, context, or tool name without inference. */
   resolve(kind: ClaimKind, name: string, loaded?: ReadonlySet<string>): ContributionOwner {
     const key = tableKey(kind, name)
-    return ownerResult(this.live.get(key), 'claim')
+    return ownerResult(this.observed.get(key), 'observe')
+      ?? ownerResult(this.live.get(key), 'claim')
       ?? ownerResult(this.configured.get(key), 'config')
       ?? ownerResult(selectLoadedOwners(this.builtin.get(key), loaded ?? loadedPackageIds(this.ctx)), 'manifest')
       ?? UNATTRIBUTED_OWNER
