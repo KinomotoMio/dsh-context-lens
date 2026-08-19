@@ -436,7 +436,7 @@ describe('LensView', () => {
     expect(screen.queryByText('bash')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Plugin One/ }))
-    expect(await screen.findByText('Reveal content')).toBeTruthy()
+    expect((await screen.findAllByText('Reveal content')).length).toBe(6)
     expect(screen.getByText('grep')).toBeTruthy()
     expect(screen.getByText('bash')).toBeTruthy()
   })
