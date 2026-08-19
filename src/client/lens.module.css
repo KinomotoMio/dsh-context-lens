@@ -13,7 +13,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: 0;
 }
 
 .root[data-mode="reader"] [role="tabpanel"]:not([hidden]) {
