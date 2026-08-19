@@ -194,11 +194,11 @@ describe('ReaderView', () => {
     const row = rows()[2]!
     fireEvent.keyDown(row, { key: 'Enter' })
     const inspector = screen.getByRole('complementary', { name: 'Inspect contribution' })
-    expect(inspector === document.activeElement || inspector.contains(document.activeElement)).toBe(true)
+    expect(inspector === globalThis.document.activeElement || inspector.contains(globalThis.document.activeElement)).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('complementary')).toBeNull()
-    expect(document.activeElement).toBe(row)
+    expect(globalThis.document.activeElement).toBe(row)
   })
 
   it('does not restore row focus when a new request loads', async () => {
