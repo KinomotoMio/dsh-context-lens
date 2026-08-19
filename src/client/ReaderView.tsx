@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -8,6 +8,7 @@ import {
   type ContextLensDocument,
   type ContextLensDocumentBlock,
   type ContextPlane,
+  type ContributionKind,
 } from '../contracts.ts'
 import type { LocaleKey } from './locales.ts'
 import css from './lens.module.css'
@@ -25,6 +26,39 @@ interface ReaderViewProps {
 }
 
 const PLANES = ['system', 'tools', 'messages'] as const satisfies readonly ContextPlane[]
+
+type KindTone = 'user' | 'system' | 'context' | 'assistant' | 'tool'
+
+const KIND_TONE = {
+  'system-section': 'system',
+  'system-prompt': 'system',
+  'tool': 'tool',
+  'runtime-context': 'context',
+  'plugin-message': 'assistant',
+  'conversation-message': 'user',
+  'framing': 'system',
+} as const satisfies Record<ContributionKind, KindTone>
+
+const TONE_CLASS: Record<KindTone, string> = {
+  user: css.readerKindUser ?? '',
+  system: css.readerKindSystem ?? '',
+  context: css.readerKindContext ?? '',
+  assistant: css.readerKindAssistant ?? '',
+  tool: css.readerKindTool ?? '',
+}
+
+function kindKey(kind: ContributionKind): LocaleKey {
+  return `reader.kind.${kind}`
+}
+
+function blockKey(block: ContextLensDocumentBlock): string {
+  return `${block.order}:${block.id}`
+}
+
+function previewText(content: string, fallback: string): string {
+  const text = content.replace(/\s+/g, ' ').trim()
+  return text.length === 0 ? fallback : text
+}
 
 async function readDocument(
   rpc: ClientConnectionRpc,
@@ -87,34 +121,59 @@ function BlockContent({ block, raw, t }: {
   return <pre className={raw || block.format === 'json' ? css.readerRaw : css.readerText}>{block.content}</pre>
 }
 
-function ReaderBlock({ block, color, dimmed, formatTokens, raw, t }: {
+function ReaderRow({
+  block,
+  color,
+  dimmed,
+  selected,
+  t,
+  onSelect,
+  rowRef,
+}: {
   readonly block: ContextLensDocumentBlock
   readonly color: string
   readonly dimmed: boolean
-  readonly formatTokens: (tokens: number) => string
-  readonly raw: boolean
+  readonly selected: boolean
   readonly t: Translate
+  readonly onSelect: () => void
+  readonly rowRef: (element: HTMLTableRowElement | null) => void
 }) {
+  const tone = KIND_TONE[block.kind]
+  const pill = t(kindKey(block.kind))
+  const onKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onSelect()
+  }
   return (
-    <article
-      className={css.readerBlock}
-      data-dimmed={dimmed ? 'true' : undefined}
+    <tr
+      ref={rowRef}
+      data-kind={block.kind}
       data-owner={block.owner.id}
+      data-dimmed={dimmed ? 'true' : undefined}
+      data-selected={selected ? 'true' : undefined}
       style={{ '--lens-owner-color': color } as CSSProperties}
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={`${pill} ${block.name} ${block.owner.label}`}
+      onClick={onSelect}
+      onKeyDown={onKeyDown}
     >
-      <div className={css.readerMeta}>
-        <span className={css.readerOwner}>{block.owner.label}</span>
-        <strong>{block.name}</strong>
-        <span>{block.kind} · ≈{formatTokens(block.tokens)}</span>
-      </div>
-      <div className={css.readerContent}>
-        <BlockContent block={block} raw={raw} t={t} />
-      </div>
-    </article>
+      <td className={css.readerEvent}>
+        {selected && <span className={css.readerSelectionRail} aria-hidden="true" />}
+        <span className={css.readerKindSlot}>
+          <span className={`${css.readerKindTag} ${TONE_CLASS[tone]}`}>{pill}</span>
+        </span>
+      </td>
+      <td className={css.readerRowOwner}>{block.owner.label}</td>
+      <td>
+        <span className={css.readerPreview}>{previewText(block.content, block.name)}</span>
+      </td>
+    </tr>
   )
 }
 
-/** Lazily load and render one request as an ordered, provider-neutral document. */
+/** Lazily load and render one request as an ordered, provider-neutral ledger. */
 export function ReaderView({
   active,
   colorFor,
@@ -130,8 +189,18 @@ export function ReaderView({
   const [retry, setRetry] = useState(0)
   const [raw, setRaw] = useState(false)
   const [focusedOwner, setFocusedOwner] = useState<string | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
+  const detailsRef = useRef<HTMLElement | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
+  const lastSelectedKey = useRef<string | null>(null)
+  const restoreRowFocus = useRef(false)
   const loaded = document?.requestKey === requestKey
+
+  const closeInspector = () => {
+    restoreRowFocus.current = true
+    setSelectedKey(null)
+  }
 
   useEffect(() => {
     if (!active || loaded) return
@@ -146,6 +215,9 @@ export function ReaderView({
         if (abort.signal.aborted) return
         setDocument(value)
         setFocusedOwner(null)
+        restoreRowFocus.current = false
+        lastSelectedKey.current = null
+        setSelectedKey(null)
       })
       .catch((reason: unknown) => {
         if (!abort.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason))
@@ -171,6 +243,27 @@ export function ReaderView({
       return [block.owner]
     })
   }, [document])
+
+  const selected = useMemo(() => {
+    if (document === null || selectedKey === null) return null
+    return document.blocks.find(block => blockKey(block) === selectedKey) ?? null
+  }, [document, selectedKey])
+
+  useEffect(() => {
+    if (selectedKey !== null) {
+      lastSelectedKey.current = selectedKey
+      detailsRef.current?.focus()
+      return
+    }
+    if (!restoreRowFocus.current) {
+      lastSelectedKey.current = null
+      return
+    }
+    restoreRowFocus.current = false
+    const previous = lastSelectedKey.current
+    if (previous !== null) rowRefs.current.get(previous)?.focus()
+    lastSelectedKey.current = null
+  }, [selectedKey])
 
   if (document === null && loading) return <div className={css.readerState} role="status">{t('reader.loading')}</div>
   if (document === null && error !== null) {
@@ -219,33 +312,94 @@ export function ReaderView({
         ))}
       </div>
 
-      <div className={css.readerDocument}>
-        {PLANES.map((plane) => {
-          const blocks = document.blocks.filter(block => block.plane === plane)
-          if (blocks.length === 0) return null
-          const tokens = blocks.reduce((sum, block) => sum + block.tokens, 0)
-          return (
-            <section className={css.readerPlane} key={plane} aria-labelledby={`lens-reader-${plane}`}>
-              <header className={css.readerPlaneHeader}>
-                <h2 id={`lens-reader-${plane}`}>{t(`reader.plane.${plane}`)}</h2>
-                <span>{blocks.length} · ≈{formatTokens(tokens)} {t('tokens')}</span>
-              </header>
-              <div>
-                {blocks.map(block => (
-                  <ReaderBlock
-                    block={block}
-                    color={colorFor(block.owner.id)}
-                    dimmed={focusedOwner !== null && focusedOwner !== block.owner.id}
-                    formatTokens={formatTokens}
-                    key={`${block.order}:${block.id}`}
-                    raw={raw}
-                    t={t}
-                  />
-                ))}
+      <div className={css.readerLedger}>
+        <div className={css.readerTablePane}>
+          <table className={css.readerTable}>
+            <caption className={css.readerCaption}>{t('reader.title')}</caption>
+            <colgroup>
+              <col className={css.readerEventColumn} />
+              <col className={css.readerOwnerColumn} />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">{t('reader.event')}</th>
+                <th scope="col">{t('reader.owner')}</th>
+                <th scope="col">{t('reader.content')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PLANES.flatMap((plane) => {
+                const blocks = document.blocks.filter(block => block.plane === plane)
+                if (blocks.length === 0) return []
+                const tokens = blocks.reduce((sum, block) => sum + block.tokens, 0)
+                return [
+                  <tr className={css.readerPlaneRow} data-plane={plane} key={`plane:${plane}`}>
+                    <td colSpan={3}>
+                      <strong id={`lens-reader-${plane}`}>{t(`reader.plane.${plane}`)}</strong>
+                      <span>{blocks.length} · ≈{formatTokens(tokens)} {t('tokens')}</span>
+                    </td>
+                  </tr>,
+                  ...blocks.map(block => (
+                    <ReaderRow
+                      block={block}
+                      color={colorFor(block.owner.id)}
+                      dimmed={focusedOwner !== null && focusedOwner !== block.owner.id}
+                      key={blockKey(block)}
+                      selected={selectedKey === blockKey(block)}
+                      t={t}
+                      onSelect={() => { setSelectedKey(blockKey(block)) }}
+                      rowRef={(element) => {
+                        const key = blockKey(block)
+                        if (element === null) rowRefs.current.delete(key)
+                        else rowRefs.current.set(key, element)
+                      }}
+                    />
+                  )),
+                ]
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {selected !== null && (
+          <aside
+            ref={detailsRef}
+            className={css.readerDetails}
+            aria-label={t('reader.inspect')}
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.preventDefault()
+              closeInspector()
+            }}
+          >
+            <div className={css.readerDetailsHeader}>
+              <div className={css.readerDetailsTitle}>
+                <span className={`${css.readerKindTag} ${TONE_CLASS[KIND_TONE[selected.kind]]}`}>
+                  {t(kindKey(selected.kind))}
+                </span>
+                <div className={css.readerDetailsCopy}>
+                  <strong className={css.readerDetailsName}>{selected.name}</strong>
+                  <span className={css.readerDetailsMeta} style={{ '--lens-owner-color': colorFor(selected.owner.id) } as CSSProperties}>
+                    {selected.owner.label} · ≈{formatTokens(selected.tokens)} {t('tokens')}
+                  </span>
+                </div>
               </div>
-            </section>
-          )
-        })}
+              <button
+                type="button"
+                className={css.readerClose}
+                aria-label={t('reader.close')}
+                onClick={closeInspector}
+              >
+                ×
+              </button>
+            </div>
+            <div className={css.readerDetailsBody}>
+              <BlockContent block={selected} raw={raw} t={t} />
+            </div>
+          </aside>
+        )}
       </div>
     </section>
   )

@@ -479,7 +479,7 @@ export function LensView({ useSession, sessionId, rpc, t }: LensProps) {
   if (snapshot === null) return null
 
   return (
-    <div className={css.root} aria-busy={loading}>
+    <div className={css.root} data-mode={mode} aria-busy={loading}>
       <header className={css.header}>
         <div>
           <h1>{t('title')}</h1>
