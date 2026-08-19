@@ -122,6 +122,21 @@ describe('PluginContextLens', () => {
     await fiber.dispose()
   })
 
+  it('uses the builtin name map even when the package version is unavailable', () => {
+    const lens = new PluginContextLens(new Context(), [])
+    expect(lens.resolve('tool', 'bash', new Set(['@deepseek-ai/dsh-tool-bash']))).toMatchObject({
+      id: '@deepseek-ai/dsh-tool-bash',
+      source: 'manifest',
+    })
+    expect(lens.resolve('tool', 'bash', new Set())).toMatchObject({
+      id: 'unattributed',
+      source: 'none',
+    })
+    expect(lens.manifestWarnings.some(warning =>
+      warning.includes('@deepseek-ai/dsh-tool-bash') && warning.includes('0.1.0-rc.7'),
+    )).toBe(true)
+  })
+
   it('attributes a shared tool name to the loaded package only', () => {
     const bash = { id: '@deepseek-ai/dsh-tool-bash', label: 'Bash' }
     const persistent = { id: '@deepseek-ai/dsh-tool-bash-persistent', label: 'Persistent Bash' }

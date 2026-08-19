@@ -178,7 +178,7 @@ export function loadedPackageIdsInScope(ctx: Context, scope: LoadedPackageScope)
   return loaded
 }
 
-/** Drop version-matched builtin owners whose plugin is not currently mounted. */
+/** Drop builtin owners whose plugin is not currently mounted. */
 export function selectLoadedOwners<T extends { readonly id: string }>(
   records: readonly T[] | undefined,
   loaded: ReadonlySet<string>,
@@ -196,10 +196,11 @@ function enableManifest(
   for (const entry of manifest) {
     const installed = packageVersion(entry.plugin)
     if (installed !== entry.version) {
-      if (installed !== undefined) {
-        warnings.push(`${entry.plugin} ${installed} does not match attribution manifest ${entry.version}`)
-      }
-      continue
+      warnings.push(
+        installed === undefined
+          ? `${entry.plugin} version is unavailable; using attribution manifest ${entry.version} as fallback`
+          : `${entry.plugin} ${installed} does not match attribution manifest ${entry.version}`,
+      )
     }
     add(table, { id: entry.plugin, label: entry.label }, entry)
   }
