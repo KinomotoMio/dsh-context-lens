@@ -20,12 +20,12 @@ export interface ConfiguredContextLensClaim extends ContextLensClaim {
   readonly plugin: string
 }
 
-interface OwnerRecord {
+export interface OwnerRecord {
   readonly id: string
   readonly label: string
 }
 
-type ClaimTable = Map<string, OwnerRecord[]>
+export type ClaimTable = Map<string, OwnerRecord[]>
 
 const require = createRequire(import.meta.url)
 
@@ -57,7 +57,7 @@ export const REQUEST_FRAMING_OWNER: ContributionOwner = {
   source: 'reserved',
 }
 
-function tableKey(kind: ClaimKind, name: string): string {
+export function tableKey(kind: ClaimKind, name: string): string {
   return `${kind}:${name}`
 }
 
@@ -81,7 +81,7 @@ function hasNames(claim: ContextLensClaim): boolean {
   return namesOf(claim).some(([, names]) => names !== undefined && names.length > 0)
 }
 
-function add(table: ClaimTable, owner: OwnerRecord, claim: ContextLensClaim): () => void {
+export function add(table: ClaimTable, owner: OwnerRecord, claim: ContextLensClaim): () => void {
   const inserted: string[] = []
   for (const [kind, names] of namesOf(claim)) {
     for (const name of new Set(names ?? [])) {
