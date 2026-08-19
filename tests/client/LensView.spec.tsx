@@ -18,6 +18,84 @@ const OWNER = {
 
 afterEach(cleanup)
 
+function mixedContributor() {
+  const owner = {
+    id: '@example/filesystem',
+    label: 'Filesystem',
+    category: 'plugin',
+    source: 'claim',
+  } as const
+  return {
+    owner,
+    tokens: 90,
+    percent: 75,
+    deltaTokens: 8,
+    contributions: [
+      {
+        id: 'system-section:fs-policy',
+        kind: 'system-section' as const,
+        name: 'fs-policy',
+        owner,
+        tokens: 30,
+        percent: 25,
+        deltaTokens: 0,
+        change: 'unchanged' as const,
+        order: 0,
+        detailRef: '1:1:0:fs-policy',
+      },
+      {
+        id: 'tool:read',
+        kind: 'tool' as const,
+        name: 'read',
+        owner,
+        tokens: 20,
+        percent: 17,
+        deltaTokens: 4,
+        change: 'added' as const,
+        order: 1,
+        detailRef: '1:1:1:read',
+      },
+      {
+        id: 'tool:write',
+        kind: 'tool' as const,
+        name: 'write',
+        owner,
+        tokens: 20,
+        percent: 17,
+        deltaTokens: 0,
+        change: 'unchanged' as const,
+        order: 2,
+        detailRef: '1:1:2:write',
+      },
+      {
+        id: 'tool:edit',
+        kind: 'tool' as const,
+        name: 'edit',
+        owner,
+        tokens: 10,
+        percent: 8,
+        deltaTokens: 0,
+        change: 'unchanged' as const,
+        order: 3,
+        detailRef: '1:1:3:edit',
+      },
+      {
+        id: 'plugin-message:fs-note',
+        kind: 'plugin-message' as const,
+        name: 'fs-note',
+        owner,
+        tokens: 10,
+        percent: 8,
+        deltaTokens: 4,
+        change: 'changed' as const,
+        order: 4,
+        detailRef: '1:1:4:fs-note',
+      },
+    ],
+  }
+}
+
+
 function snapshot(cacheReported = true): ContextLensSnapshot {
   return {
     version: CONTEXT_LENS_WIRE_VERSION,
@@ -98,7 +176,12 @@ function props(rpc: ClientConnectionRpc): ComponentProps<typeof LensView> {
     sessionId: 'session-1',
     useSession: selector => selector(session as never),
     rpc,
-    t: key => en[key as LocaleKey],
+    t: (key, params) => {
+      const template = en[key as LocaleKey]
+      if (params === undefined) return template
+      return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+        Object.hasOwn(params, name) ? String(params[name]) : match)
+    },
   } as ComponentProps<typeof LensView>
 }
 
@@ -153,6 +236,31 @@ function document(): ContextLensDocument {
 }
 
 describe('LensView', () => {
+
+  it('lists each plugin\'s contexts, tools, and operations without expanding', async () => {
+    const value = snapshot()
+    value.contributors = [mixedContributor()]
+    const call = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value }))
+    render(<LensView {...props({ call })} />)
+
+    expect(await screen.findByText('Filesystem')).toBeTruthy()
+    expect(screen.getByText(/Plugin inventory · then estimated share/)).toBeTruthy()
+    expect(screen.getByText('Contexts')).toBeTruthy()
+    expect(screen.getByText('Tools')).toBeTruthy()
+    expect(screen.getByText('Operations')).toBeTruthy()
+    expect(screen.getByText('Contexts').querySelector('svg')).toBeTruthy()
+    expect(screen.getByText('Tools').querySelector('svg')).toBeTruthy()
+    expect(screen.getByText('Operations').querySelector('svg')).toBeTruthy()
+    expect(screen.getByText('fs-policy')).toBeTruthy()
+    expect(screen.getByText('Added')).toBeTruthy()
+    expect(screen.getByText('read')).toBeTruthy()
+    expect(screen.getByText('write')).toBeTruthy()
+    expect(screen.getByText('edit')).toBeTruthy()
+    expect(screen.getByText('fs-note')).toBeTruthy()
+    expect(screen.queryByText('Reveal content')).toBeNull()
+    expect(screen.queryByText('tool')).toBeNull()
+  })
+
   it('loads the ordered request document only after the reader is selected', async () => {
     const call = vi.fn<ClientConnectionRpc['call']>(async (_channel, endpoint) => {
       if (endpoint === 'snapshot') return { ok: true, value: snapshot() }
@@ -293,6 +401,44 @@ describe('LensView', () => {
         expect.any(AbortSignal),
       )
     })
+  })
+
+  it('caps collapsed inventory chips per group and keeps the rest after expand', async () => {
+    const tools = ['read', 'write', 'edit', 'glob', 'grep', 'bash'] as const
+    const value = snapshot()
+    value.contributors = [{
+      owner: OWNER,
+      tokens: 60,
+      percent: 100,
+      deltaTokens: 0,
+      contributions: tools.map((name, index) => ({
+        id: `tool:${name}`,
+        kind: 'tool' as const,
+        name,
+        owner: OWNER,
+        tokens: 10,
+        percent: 16,
+        deltaTokens: 0,
+        change: 'unchanged' as const,
+        order: index,
+        detailRef: `1:1:${index}:${name}`,
+      })),
+    }]
+    const call = vi.fn<ClientConnectionRpc['call']>(async () => ({ ok: true, value }))
+    render(<LensView {...props({ call })} />)
+
+    expect(await screen.findByText('read')).toBeTruthy()
+    expect(screen.getByText('write')).toBeTruthy()
+    expect(screen.getByText('edit')).toBeTruthy()
+    expect(screen.getByText('glob')).toBeTruthy()
+    expect(screen.getByText('+2 more')).toBeTruthy()
+    expect(screen.queryByText('grep')).toBeNull()
+    expect(screen.queryByText('bash')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Plugin One/ }))
+    expect((await screen.findAllByText('Reveal content')).length).toBe(6)
+    expect(screen.getByText('grep')).toBeTruthy()
+    expect(screen.getByText('bash')).toBeTruthy()
   })
 
   it('keeps conflicted, unattributed, and version-drift states explicit', async () => {

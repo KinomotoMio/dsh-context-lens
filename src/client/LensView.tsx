@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, IconChevronDownOutline14, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14, IconPlayOutline16, IconSettingsOutline16, IconSparkle16, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   CONTEXT_LENS_RPC_CHANNEL,
   CONTEXT_LENS_WIRE_VERSION,
   detailSchema,
   snapshotSchema,
+  type ChangeKind,
   type ContextLensDetail,
   type ContextLensSnapshot,
+  type ContributionKind,
+  type LensContribution,
   type LensContributor,
 } from '../contracts.ts'
 import type { LocaleKey } from './locales.ts'
@@ -24,7 +27,100 @@ type LensProps = ConvViewProps
   & InjectFace<LensViewInjected>
   & PropsLocale<'plugin-context-lens'>
 
-type Translate = (key: LocaleKey) => string
+type Translate = (key: LocaleKey, params?: Record<string, unknown>) => string
+
+type InventoryGroup = 'contexts' | 'tools' | 'operations' | 'messages' | 'framing'
+
+const KIND_GROUP = {
+  'runtime-context': 'contexts',
+  'system-section': 'contexts',
+  'system-prompt': 'contexts',
+  'tool': 'tools',
+  'plugin-message': 'operations',
+  'conversation-message': 'messages',
+  'framing': 'framing',
+} as const satisfies Record<ContributionKind, InventoryGroup>
+
+const GROUP_ORDER = ['contexts', 'tools', 'operations', 'messages', 'framing'] as const satisfies readonly InventoryGroup[]
+
+const INVENTORY_COLLAPSED_LIMIT = 4
+
+const GROUP_LABEL = {
+  contexts: 'inventory.contexts',
+  tools: 'inventory.tools',
+  operations: 'inventory.operations',
+  messages: 'inventory.messages',
+  framing: 'inventory.framing',
+} as const satisfies Record<InventoryGroup, LocaleKey>
+
+function ToolWrenchIcon(): ReactNode {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-role-icon="wrench"
+      aria-hidden="true"
+    >
+      <path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z" />
+    </svg>
+  )
+}
+
+function InformationIcon(): ReactNode {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      data-role-icon="information"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6.7" />
+      <circle cx="8" cy="5.5" r=".85" fill="currentColor" stroke="none" />
+      <path d="M8 7.75v3.4" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+const GROUP_ICON = {
+  contexts: <InformationIcon />,
+  tools: <ToolWrenchIcon />,
+  operations: <IconPlayOutline16 size={13} />,
+  messages: <IconSparkle16 size={13} />,
+  framing: <IconSettingsOutline16 size={13} />,
+} as const satisfies Record<InventoryGroup, ReactNode>
+
+const CHANGE_MARK = {
+  added: '+',
+  removed: '−',
+  changed: '~',
+  moved: '↕',
+} as const satisfies Record<Exclude<ChangeKind, 'unchanged'>, string>
+
+function inventoryGroups(contributions: readonly LensContribution[]): { key: InventoryGroup; items: LensContribution[] }[] {
+  const buckets = new Map<InventoryGroup, LensContribution[]>()
+  for (const item of contributions) {
+    const key = KIND_GROUP[item.kind]
+    const list = buckets.get(key)
+    if (list === undefined) buckets.set(key, [item])
+    else list.push(item)
+  }
+  return GROUP_ORDER.flatMap((key) => {
+    const items = buckets.get(key)
+    return items === undefined || items.length === 0 ? [] : [{ key, items }]
+  })
+}
+
 type LensMode = 'breakdown' | 'reader'
 
 const MODES = ['breakdown', 'reader'] as const satisfies readonly LensMode[]
@@ -217,6 +313,7 @@ function ContributorRow({
 }) {
   const [open, setOpen] = useState(false)
   const color = colorFor(contributor.owner.id)
+  const groups = inventoryGroups(contributor.contributions)
   return (
     <article className={css.contributor}>
       <button
@@ -225,22 +322,61 @@ function ContributorRow({
         aria-expanded={open}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.swatch} style={{ backgroundColor: color }} aria-hidden="true" />
-        <span className={css.ownerText}>
-          <strong>{contributor.owner.label}</strong>
-          <small>{contributor.owner.id}</small>
+        <span className={css.contributorLead}>
+          <span className={css.swatch} style={{ backgroundColor: color }} aria-hidden="true" />
+          <span className={css.ownerText}>
+            <strong>{contributor.owner.label}</strong>
+            <small>{contributor.owner.id}</small>
+          </span>
+          <span className={css.ownerDelta} data-positive={contributor.deltaTokens > 0}>
+            {delta(contributor.deltaTokens)}
+          </span>
+          <span className={css.ownerTokens}>≈{formatTokens(contributor.tokens)}</span>
+          <span className={css.ownerPercent}>{formatPercent(contributor.percent)}</span>
+          <IconChevronDownOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
         </span>
-        <span className={css.ownerCount}>
-          {contributor.contributions.length} {contributor.contributions.length === 1
-            ? t('contribution')
-            : t('contributions')}
-        </span>
-        <span className={css.ownerDelta} data-positive={contributor.deltaTokens > 0}>
-          {delta(contributor.deltaTokens)}
-        </span>
-        <span className={css.ownerTokens}>≈{formatTokens(contributor.tokens)}</span>
-        <span className={css.ownerPercent}>{formatPercent(contributor.percent)}</span>
-        <IconChevronDownOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
+        {groups.length > 0 && (
+          <span className={css.ownerInventory}>
+            {groups.map((group) => {
+              const visible = group.items.slice(0, INVENTORY_COLLAPSED_LIMIT)
+              const overflow = group.items.length - visible.length
+              return (
+                <span className={css.inventoryGroup} key={group.key}>
+                  <span className={css.inventoryLabel}>
+                    <span aria-hidden="true">{GROUP_ICON[group.key]}</span>
+                    {t(GROUP_LABEL[group.key])}
+                  </span>
+                  {visible.map(item => (
+                    <span
+                      className={css.inventoryItem}
+                      key={item.id}
+                      title={item.change === 'unchanged'
+                        ? item.name
+                        : `${item.name} · ${t(`change.${item.change}` as LocaleKey)}`}
+                    >
+                      <span className={css.inventoryName}>{item.name}</span>
+                      {item.change !== 'unchanged' && (
+                        <>
+                          <span className={css.inventoryMark} data-change={item.change} aria-hidden="true">
+                            {CHANGE_MARK[item.change]}
+                          </span>
+                          <span className={css.srOnly}>{t(`change.${item.change}` as LocaleKey)}</span>
+                        </>
+                      )}
+                    </span>
+                  ))}
+                  {overflow > 0 && (
+                    <span className={css.inventoryItem}>
+                      <span className={css.inventoryName}>
+                        {t('inventory.more', { n: overflow })}
+                      </span>
+                    </span>
+                  )}
+                </span>
+              )
+            })}
+          </span>
+        )}
       </button>
       {open && (
         <div className={css.contributionList}>

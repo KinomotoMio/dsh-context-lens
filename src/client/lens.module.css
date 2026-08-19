@@ -245,13 +245,13 @@
 }
 
 .contributorSummary {
-  display: grid;
-  grid-template-columns: 8px minmax(180px, 1.5fr) minmax(84px, .7fr) 66px 76px 48px 14px;
-  align-items: center;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
-  min-height: 48px;
-  padding: 7px 12px;
+  min-height: 0;
+  padding: 5px 12px;
   box-sizing: border-box;
   border: 0;
   outline: 0;
@@ -259,6 +259,14 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.contributorLead {
+  display: grid;
+  grid-template-columns: 8px minmax(180px, 1.5fr) 66px 76px 48px 14px;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
 }
 
 .contributorSummary:hover {
@@ -276,7 +284,9 @@
 }
 
 .ownerText {
-  display: grid;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -292,11 +302,12 @@
 }
 
 .ownerText small {
+  flex: 1;
+  min-width: 0;
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xxxs-11);
 }
 
-.ownerCount,
 .ownerDelta,
 .ownerTokens,
 .ownerPercent {
@@ -313,6 +324,84 @@
 
 .ownerDelta[data-positive="true"] {
   color: var(--dsw-alias-state-success-primary);
+}
+
+.ownerInventory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  min-width: 0;
+  padding-left: 18px;
+}
+
+.inventoryGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.inventoryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxxs-11);
+}
+
+.inventoryLabel svg {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  display: block;
+}
+
+.inventoryItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 160px;
+  height: 18px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 3px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  font: var(--dsw-font-xxxs-11);
+}
+
+.inventoryName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventoryMark {
+  flex: none;
+  font: var(--dsw-font-xxxs-11);
+}
+
+.inventoryMark[data-change="added"] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.inventoryMark[data-change="removed"] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.inventoryMark[data-change="changed"],
+.inventoryMark[data-change="moved"] {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .chevron {
@@ -763,13 +852,16 @@
     border-left: 0;
   }
 
-  .contributorSummary {
+  .contributorLead {
     grid-template-columns: 8px minmax(0, 1fr) 66px 44px 14px;
   }
 
-  .ownerCount,
   .ownerDelta {
     display: none;
+  }
+
+  .ownerInventory {
+    padding-left: 18px;
   }
 
   .contributionMeta {
