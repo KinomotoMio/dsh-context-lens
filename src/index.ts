@@ -21,6 +21,7 @@ import {
   loadedPackageIdsInScope,
   type ConfiguredContextLensClaim,
 } from './claims.ts'
+import { observe } from './observe.ts'
 import {
   CONTEXT_LENS_RPC_CHANNEL,
   detailRequestSchema,
@@ -90,6 +91,7 @@ export const inject = [
   'sessions',
   'systemPrompt',
   'tokenMeter',
+  'tools',
 ] as const
 
 function badRequest(
@@ -120,6 +122,7 @@ function internalError(error: unknown): RpcResult<never> {
 /** Install the claim seam, live observer, and private read-only RPC channel. */
 export function apply(ctx: Context, config: Config = {}): void {
   const claims = new PluginContextLens(ctx, config.claims ?? [])
+  observe(ctx, claims.observed)
   const assemblies = new LiveAssemblyStore(ctx, config.liveAssemblyRetention ?? 2)
   const requestHistoryLimit = config.requestHistoryLimit ?? 50
 

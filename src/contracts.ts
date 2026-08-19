@@ -46,7 +46,7 @@ export const ownerSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   category: ownerCategorySchema,
-  source: z.enum(['event', 'claim', 'config', 'manifest', 'reserved', 'none', 'conflict']),
+  source: z.enum(['event', 'observe', 'claim', 'config', 'manifest', 'reserved', 'none', 'conflict']),
 }).strict()
 
 export type ContributionOwner = z.infer<typeof ownerSchema>

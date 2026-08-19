@@ -20,12 +20,12 @@ export interface ConfiguredContextLensClaim extends ContextLensClaim {
   readonly plugin: string
 }
 
-interface OwnerRecord {
+export interface OwnerRecord {
   readonly id: string
   readonly label: string
 }
 
-type ClaimTable = Map<string, OwnerRecord[]>
+export type ClaimTable = Map<string, OwnerRecord[]>
 
 const require = createRequire(import.meta.url)
 
@@ -57,7 +57,7 @@ export const REQUEST_FRAMING_OWNER: ContributionOwner = {
   source: 'reserved',
 }
 
-function tableKey(kind: ClaimKind, name: string): string {
+export function tableKey(kind: ClaimKind, name: string): string {
   return `${kind}:${name}`
 }
 
@@ -81,7 +81,7 @@ function hasNames(claim: ContextLensClaim): boolean {
   return namesOf(claim).some(([, names]) => names !== undefined && names.length > 0)
 }
 
-function add(table: ClaimTable, owner: OwnerRecord, claim: ContextLensClaim): () => void {
+export function add(table: ClaimTable, owner: OwnerRecord, claim: ContextLensClaim): () => void {
   const inserted: string[] = []
   for (const [kind, names] of namesOf(claim)) {
     for (const name of new Set(names ?? [])) {
@@ -178,7 +178,7 @@ export function loadedPackageIdsInScope(ctx: Context, scope: LoadedPackageScope)
   return loaded
 }
 
-/** Drop version-matched builtin owners whose plugin is not currently mounted. */
+/** Drop builtin owners whose plugin is not currently mounted. */
 export function selectLoadedOwners<T extends { readonly id: string }>(
   records: readonly T[] | undefined,
   loaded: ReadonlySet<string>,
@@ -196,10 +196,11 @@ function enableManifest(
   for (const entry of manifest) {
     const installed = packageVersion(entry.plugin)
     if (installed !== entry.version) {
-      if (installed !== undefined) {
-        warnings.push(`${entry.plugin} ${installed} does not match attribution manifest ${entry.version}`)
-      }
-      continue
+      warnings.push(
+        installed === undefined
+          ? `${entry.plugin} version is unavailable; using attribution manifest ${entry.version} as fallback`
+          : `${entry.plugin} ${installed} does not match attribution manifest ${entry.version}`,
+      )
     }
     add(table, { id: entry.plugin, label: entry.label }, entry)
   }
@@ -224,10 +225,11 @@ function ownerResult(
 }
 
 /**
- * Exact contribution registry. Live callers are resolved before operator config,
- * then the version-verified first-party manifest for packages that are loaded.
+ * Exact contribution registry. Observed registrations resolve first, then live
+ * claim(), operator config, then the first-party manifest for loaded packages.
  */
 export class PluginContextLens extends Service {
+  readonly observed: ClaimTable = new Map()
   private readonly live: ClaimTable = new Map()
   private readonly configured: ClaimTable = new Map()
   private readonly builtin: ClaimTable = new Map()
@@ -262,7 +264,8 @@ export class PluginContextLens extends Service {
   /** Resolve one exact section, context, or tool name without inference. */
   resolve(kind: ClaimKind, name: string, loaded?: ReadonlySet<string>): ContributionOwner {
     const key = tableKey(kind, name)
-    return ownerResult(this.live.get(key), 'claim')
+    return ownerResult(this.observed.get(key), 'observe')
+      ?? ownerResult(this.live.get(key), 'claim')
       ?? ownerResult(this.configured.get(key), 'config')
       ?? ownerResult(selectLoadedOwners(this.builtin.get(key), loaded ?? loadedPackageIds(this.ctx)), 'manifest')
       ?? UNATTRIBUTED_OWNER
