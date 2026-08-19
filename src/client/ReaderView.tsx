@@ -39,13 +39,13 @@ const KIND_TONE = {
   'framing': 'system',
 } as const satisfies Record<ContributionKind, KindTone>
 
-const TONE_CLASS = {
-  user: css.readerKindUser,
-  system: css.readerKindSystem,
-  context: css.readerKindContext,
-  assistant: css.readerKindAssistant,
-  tool: css.readerKindTool,
-} as const satisfies Record<KindTone, string>
+const TONE_CLASS: Record<KindTone, string> = {
+  user: css.readerKindUser ?? '',
+  system: css.readerKindSystem ?? '',
+  context: css.readerKindContext ?? '',
+  assistant: css.readerKindAssistant ?? '',
+  tool: css.readerKindTool ?? '',
+}
 
 function kindKey(kind: ContributionKind): LocaleKey {
   return `reader.kind.${kind}`
