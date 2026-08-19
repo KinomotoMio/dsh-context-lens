@@ -9,6 +9,21 @@
   font: var(--dsw-font-s-14);
 }
 
+.root[data-mode="reader"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.root[data-mode="reader"] [role="tabpanel"]:not([hidden]) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .header {
   position: sticky;
   top: 0;
@@ -395,8 +410,11 @@
 
 .reader {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -509,6 +527,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--dsw-alias-bg-layer-1);
 }
 
@@ -516,6 +535,7 @@
   flex: 1;
   min-width: 0;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .readerCaption {
@@ -711,10 +731,12 @@
   display: flex;
   flex: none;
   flex-direction: column;
+  align-self: stretch;
   width: clamp(320px, 38%, 440px);
   max-width: calc(100% - 280px);
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -1010,10 +1032,14 @@
     width: 88px;
   }
 
+  .readerTablePane { min-height: 0; }
+
   .readerDetails {
     width: 100%;
     max-width: none;
+    height: 42%;
     min-height: 220px;
+    max-height: 48%;
     border-top: 1px solid var(--dsw-alias-border-l2);
     border-left: 0;
   }
