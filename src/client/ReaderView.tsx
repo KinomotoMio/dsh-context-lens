@@ -194,7 +194,13 @@ export function ReaderView({
   const detailsRef = useRef<HTMLElement | null>(null)
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
   const lastSelectedKey = useRef<string | null>(null)
+  const restoreRowFocus = useRef(false)
   const loaded = document?.requestKey === requestKey
+
+  const closeInspector = () => {
+    restoreRowFocus.current = true
+    setSelectedKey(null)
+  }
 
   useEffect(() => {
     if (!active || loaded) return
@@ -209,6 +215,8 @@ export function ReaderView({
         if (abort.signal.aborted) return
         setDocument(value)
         setFocusedOwner(null)
+        restoreRowFocus.current = false
+        lastSelectedKey.current = null
         setSelectedKey(null)
       })
       .catch((reason: unknown) => {
@@ -247,9 +255,14 @@ export function ReaderView({
       detailsRef.current?.focus()
       return
     }
+    if (!restoreRowFocus.current) {
+      lastSelectedKey.current = null
+      return
+    }
+    restoreRowFocus.current = false
     const previous = lastSelectedKey.current
-    if (previous === null) return
-    rowRefs.current.get(previous)?.focus()
+    if (previous !== null) rowRefs.current.get(previous)?.focus()
+    lastSelectedKey.current = null
   }, [selectedKey])
 
   if (document === null && loading) return <div className={css.readerState} role="status">{t('reader.loading')}</div>
@@ -358,7 +371,7 @@ export function ReaderView({
             onKeyDown={(event) => {
               if (event.key !== 'Escape') return
               event.preventDefault()
-              setSelectedKey(null)
+              closeInspector()
             }}
           >
             <div className={css.readerDetailsHeader}>
@@ -377,7 +390,7 @@ export function ReaderView({
                 type="button"
                 className={css.readerClose}
                 aria-label={t('reader.close')}
-                onClick={() => { setSelectedKey(null) }}
+                onClick={closeInspector}
               >
                 ×
               </button>

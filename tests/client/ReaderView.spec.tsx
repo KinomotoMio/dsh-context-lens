@@ -200,4 +200,22 @@ describe('ReaderView', () => {
     expect(screen.queryByRole('complementary')).toBeNull()
     expect(document.activeElement).toBe(row)
   })
+
+  it('does not restore row focus when a new request loads', async () => {
+    const call = vi.fn<ClientConnectionRpc['call']>(async (_channel, _method, params) => {
+      const requestKey = (params as { requestKey: string }).requestKey
+      return { ok: true, value: { ...document(), requestKey } }
+    })
+    const { rerender } = render(<ReaderView {...props({ call })} />)
+    expect(await screen.findByText('System from Plugin One.')).toBeTruthy()
+
+    fireEvent.click(rows()[0]!)
+    expect(screen.getByRole('complementary', { name: 'Inspect contribution' })).toBeTruthy()
+
+    rerender(<ReaderView {...props({ call })} requestKey="1:2" />)
+    expect(await screen.findByRole('status')).toBeTruthy()
+    expect(await screen.findByRole('table')).toBeTruthy()
+    expect(screen.queryByRole('complementary')).toBeNull()
+    expect(rows().some(row => row === globalThis.document.activeElement)).toBe(false)
+  })
 })
