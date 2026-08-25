@@ -12,6 +12,9 @@
 .root[data-mode="reader"] {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -498,7 +501,7 @@
 
 .reader {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
   min-height: 0;
   height: 100%;
@@ -612,7 +615,7 @@
 
 .readerLedger {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -620,8 +623,9 @@
 }
 
 .readerTablePane {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -654,6 +658,9 @@
 }
 
 .readerTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   box-sizing: border-box;
   height: 30px;
   padding: 0 8px;
@@ -820,10 +827,14 @@
   flex: none;
   flex-direction: column;
   align-self: stretch;
+  position: sticky;
+  top: 0;
   width: clamp(320px, 38%, 440px);
   max-width: calc(100% - 280px);
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-1);

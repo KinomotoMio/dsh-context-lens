@@ -185,7 +185,7 @@ function props(rpc: ClientConnectionRpc): ComponentProps<typeof LensView> {
   } as ComponentProps<typeof LensView>
 }
 
-function document(): ContextLensDocument {
+function lensDocument(): ContextLensDocument {
   const pluginTwo = {
     id: '@example/plugin-two',
     label: 'Plugin Two',
@@ -264,7 +264,7 @@ describe('LensView', () => {
   it('loads the ordered request document only after the reader is selected', async () => {
     const call = vi.fn<ClientConnectionRpc['call']>(async (_channel, endpoint) => {
       if (endpoint === 'snapshot') return { ok: true, value: snapshot() }
-      if (endpoint === 'document') return { ok: true, value: document() }
+      if (endpoint === 'document') return { ok: true, value: lensDocument() }
       throw new Error(`unexpected endpoint ${endpoint}`)
     })
     render(<LensView {...props({ call })} />)
@@ -305,6 +305,27 @@ describe('LensView', () => {
       expect.objectContaining({ requestKey: '1:1' }),
       expect.any(AbortSignal),
     )
+  })
+
+  it('opts the conversation host into overlay so the reader list scrolls alone', async () => {
+    const call = vi.fn<ClientConnectionRpc['call']>(async (_channel, endpoint) => {
+      if (endpoint === 'snapshot') return { ok: true, value: snapshot() }
+      if (endpoint === 'document') return { ok: true, value: lensDocument() }
+      throw new Error(`unexpected endpoint ${endpoint}`)
+    })
+    render(<LensView {...props({ call })} />)
+
+    expect(await screen.findByRole('tab', { name: 'Breakdown' })).toBeTruthy()
+    expect(document.querySelector('[data-conversation-composer-overlay]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Reader' }))
+    expect(await screen.findByRole('tabpanel', { name: 'Reader' })).toBeTruthy()
+    const reader = document.querySelector('[data-mode="reader"]')
+    expect(reader).not.toBeNull()
+    expect(reader!.hasAttribute('data-conversation-composer-overlay')).toBe(true)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+    expect(document.querySelector('[data-conversation-composer-overlay]')).toBeNull()
   })
 
   it('keeps contribution content behind two levels of disclosure', async () => {
