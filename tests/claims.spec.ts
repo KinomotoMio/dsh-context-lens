@@ -1,4 +1,4 @@
-import { Context, type Fiber } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import {
   PluginContextLens,
@@ -6,6 +6,7 @@ import {
   selectLoadedOwners,
   withinFiber,
 } from '../src/claims.ts'
+import { observe } from '../src/observe.ts'
 
 describe('PluginContextLens', () => {
   it('resolves config exactly and leaves unknown names unattributed', () => {
@@ -70,6 +71,70 @@ describe('PluginContextLens', () => {
   it('rejects empty claims', () => {
     const lens = new PluginContextLens(new Context(), [])
     expect(() => { lens.claim({}) }).toThrow('claim has no contribution names')
+  })
+
+  it('prefers an observed registration over claim and config for the same name', async () => {
+    const ctx = new Context()
+    new FakeTools(ctx)
+    const lens = new PluginContextLens(ctx, [{
+      plugin: '@example/configured',
+      tools: ['shared_tool'],
+    }])
+    observe(ctx, lens.observed)
+    const child = {
+      name: '@example/child',
+      apply: (scope: Context) => {
+        scope.pluginContextLens.claim({ tools: ['shared_tool'] })
+        scope.get('tools').register({ name: 'shared_tool' })
+      },
+    }
+
+    const fiber = await ctx.plugin(child)
+    expect(lens.resolve('tool', 'shared_tool')).toMatchObject({
+      id: '@example/child',
+      source: 'observe',
+    })
+
+    await fiber.dispose()
+    expect(lens.resolve('tool', 'shared_tool')).toMatchObject({
+      id: '@example/configured',
+      source: 'config',
+    })
+  })
+
+  it('still resolves a live claim when nothing was observed', async () => {
+    const ctx = new Context()
+    new FakeTools(ctx)
+    const lens = new PluginContextLens(ctx, [])
+    observe(ctx, lens.observed)
+    const contributor = {
+      name: '@example/live',
+      apply: (scope: Context) => {
+        scope.pluginContextLens.claim({ tools: ['claimed_tool'] })
+      },
+    }
+
+    const fiber = await ctx.plugin(contributor)
+    expect(lens.resolve('tool', 'claimed_tool')).toMatchObject({
+      id: '@example/live',
+      source: 'claim',
+    })
+    await fiber.dispose()
+  })
+
+  it('uses the builtin name map even when the package version is unavailable', () => {
+    const lens = new PluginContextLens(new Context(), [])
+    expect(lens.resolve('tool', 'bash', new Set(['@deepseek-ai/dsh-tool-bash']))).toMatchObject({
+      id: '@deepseek-ai/dsh-tool-bash',
+      source: 'manifest',
+    })
+    expect(lens.resolve('tool', 'bash', new Set())).toMatchObject({
+      id: 'unattributed',
+      source: 'none',
+    })
+    expect(lens.manifestWarnings.some(warning =>
+      warning.includes('@deepseek-ai/dsh-tool-bash') && warning.includes('0.1.0-rc.7'),
+    )).toBe(true)
   })
 
   it('attributes a shared tool name to the loaded package only', () => {
@@ -146,4 +211,14 @@ function fakeRegistry(...fibers: FakeFiber[]): Context {
       values: () => [{ fibers: fibers.map(asFiber) }],
     },
   } as unknown as Context
+}
+
+class FakeTools extends Service {
+  constructor(ctx: Context) {
+    super(ctx, 'tools')
+  }
+
+  register(definition: { name: string }): () => void {
+    return this.ctx.effect(() => () => undefined, `fake-tools.register ${definition.name}`)
+  }
 }
